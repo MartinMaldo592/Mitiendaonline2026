@@ -1,12 +1,16 @@
 "use client"
 
 import React, { useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
 
 export default function OpenWaPageClient() {
-  const searchParams = useSearchParams()
-  const phone = searchParams.get('phone') || ''
-  const text = searchParams.get('text') || ''
+  const [phone, setPhone] = useState('')
+  const [text, setText] = useState('')
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    setPhone(params.get('phone') || '')
+    setText(params.get('text') || '')
+  }, [])
 
   const whatsappWeb = `https://web.whatsapp.com/send?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(text)}`
   const apiWhatsApp = `https://api.whatsapp.com/send?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(text)}`
@@ -47,6 +51,12 @@ export default function OpenWaPageClient() {
       <div style={{ maxWidth: 680, width: '100%', textAlign: 'center' }}>
         <h1 style={{ margin: 0, fontSize: 20, marginBottom: 8 }}>Chatea en WhatsApp</h1>
         <p style={{ color: '#444', marginTop: 0 }}>Pulsa una opción para abrir tu chat preferido. La tienda quedará abierta en la otra pestaña.</p>
+
+        {triedApp && (
+          <p style={{ color: '#444', marginTop: 0, fontSize: 12 }}>
+            Intentando abrir la aplicación de WhatsApp...
+          </p>
+        )}
 
         <textarea readOnly value={text} style={{ width: '100%', minHeight: 120, marginTop: 12, padding: 12, borderRadius: 8, border: '1px solid #e6e6e6', resize: 'vertical' }} />
 
