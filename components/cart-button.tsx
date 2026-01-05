@@ -77,9 +77,9 @@ export function CartButton() {
                             <CheckCircle className="h-12 w-12" />
                         </div>
                         <div className="space-y-2">
-                            <h3 className="text-2xl font-bold text-gray-900">¡Pedido Enviado!</h3>
+                            <h3 className="text-2xl font-bold text-gray-900">¡Pedido Confirmado!</h3>
                             <p className="text-gray-500 max-w-[250px] mx-auto text-sm leading-relaxed">
-                                Tus datos y pedido han sido cargados a WhatsApp. ¡Gracias por tu preferencia!
+                                Tu pedido se registró correctamente. Ahora se abrirá WhatsApp para finalizar la confirmación. ¡Gracias por tu preferencia!
                             </p>
                         </div>
 

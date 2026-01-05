@@ -67,6 +67,7 @@ export interface Database {
                     id: number
                     nombre: string
                     telefono: string | null
+                    dni: string | null
                     direccion: string | null
                     es_problematico: boolean | null
                     created_at: string
@@ -75,6 +76,7 @@ export interface Database {
                     id?: number
                     nombre: string
                     telefono?: string | null
+                    dni?: string | null
                     direccion?: string | null
                     es_problematico?: boolean | null
                     created_at?: string
@@ -83,6 +85,7 @@ export interface Database {
                     id?: number
                     nombre?: string
                     telefono?: string | null
+                    dni?: string | null
                     direccion?: string | null
                     es_problematico?: boolean | null
                     created_at?: string

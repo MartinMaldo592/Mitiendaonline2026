@@ -27,12 +27,15 @@ export async function POST(request: NextRequest) {
 
         // Get order data from request body
         const body = await request.json()
-        const { orderId, clientName, clientPhone, address, items, total, panelLink } = body
+        const { orderId, clientName, clientDni, clientPhone, address, items, total, panelLink } = body
 
         // Create the notification message
         let message = `🔔 *NUEVO PEDIDO #${orderId}* 🔔\n\n`
         message += `⏰ ${new Date().toLocaleString('es-PE')}\n\n`
         message += `👤 *Cliente:* ${clientName}\n`
+        if (clientDni) {
+            message += `🪪 *DNI:* ${clientDni}\n`
+        }
         message += `📱 *Tel:* ${clientPhone}\n`
         message += `📍 *Dirección:* ${address}\n\n`
         message += `*PRODUCTOS:*\n`
@@ -73,11 +76,23 @@ export async function POST(request: NextRequest) {
             to: adminWhatsAppNumber
         })
 
-        console.log('WhatsApp notification sent:', twilioMessage.sid)
+        console.log('WhatsApp notification sent:', {
+            sid: twilioMessage.sid,
+            status: twilioMessage.status,
+            to: twilioMessage.to,
+            from: twilioMessage.from,
+            errorCode: (twilioMessage as any).errorCode ?? null,
+            errorMessage: (twilioMessage as any).errorMessage ?? null,
+        })
 
         return NextResponse.json({
             success: true,
-            messageId: twilioMessage.sid
+            messageId: twilioMessage.sid,
+            status: twilioMessage.status,
+            errorCode: (twilioMessage as any).errorCode ?? null,
+            errorMessage: (twilioMessage as any).errorMessage ?? null,
+            to: twilioMessage.to,
+            from: twilioMessage.from
         })
 
     } catch (error: any) {

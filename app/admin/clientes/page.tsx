@@ -45,7 +45,7 @@ export default function ClientesPage() {
             <div className="flex gap-2 bg-white p-4 rounded-xl shadow-sm border">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input placeholder="Buscar por nombre o teléfono..." className="pl-9 border-gray-200" />
+                    <Input placeholder="Buscar por nombre, teléfono o DNI..." className="pl-9 border-gray-200" />
                 </div>
             </div>
 
@@ -76,6 +76,7 @@ export default function ClientesPage() {
                                         <div className="flex items-center gap-2 text-sm text-gray-600">
                                             <Phone className="h-3 w-3" /> {cliente.telefono}
                                         </div>
+                                        <div className="text-xs text-gray-500 mt-1">DNI: {cliente.dni || '—'}</div>
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex items-start gap-2 text-sm text-gray-500 max-w-[300px]">

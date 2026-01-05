@@ -97,6 +97,7 @@ export default function PedidoTicketPage() {
           <div className="border border-border rounded-md p-4">
             <div className="font-semibold">Cliente</div>
             <div className="text-sm mt-1">{pedido.clientes?.nombre || ""}</div>
+            <div className="text-sm text-muted-foreground">DNI: {pedido.clientes?.dni || ""}</div>
             <div className="text-sm text-muted-foreground">{pedido.clientes?.telefono || ""}</div>
           </div>
           <div className="border border-border rounded-md p-4">

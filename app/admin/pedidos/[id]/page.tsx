@@ -242,6 +242,10 @@ export default function PedidoDetallePage() {
                                 <p className="font-medium">{pedido.clientes?.nombre}</p>
                             </div>
                             <div>
+                                <p className="text-sm text-gray-500">DNI</p>
+                                <p className="font-medium">{pedido.clientes?.dni || '—'}</p>
+                            </div>
+                            <div>
                                 <p className="text-sm text-gray-500">Teléfono</p>
                                 <div className="flex items-center gap-2">
                                     <Phone className="h-4 w-4 text-gray-400" />

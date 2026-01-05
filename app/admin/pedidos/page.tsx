@@ -71,6 +71,7 @@ export default function PedidosPage() {
             fecha: p.created_at,
             cliente: p.clientes?.nombre || '',
             telefono: p.clientes?.telefono || '',
+            dni: p.clientes?.dni || '',
             total: p.total,
             status: p.status,
             pago_status: p.pago_status,
@@ -125,7 +126,7 @@ export default function PedidosPage() {
                 .from('pedidos')
                 .select(`
                     *,
-                    clientes (nombre, telefono)
+                    clientes (nombre, telefono, dni)
                 `)
                 .order('created_at', { ascending: false })
 
@@ -142,7 +143,7 @@ export default function PedidosPage() {
                 if (error.message.includes('asignado_a')) {
                     const { data: fallbackData } = await supabase
                         .from('pedidos')
-                        .select(`*, clientes (nombre, telefono)`)
+                        .select(`*, clientes (nombre, telefono, dni)`)
                         .order('created_at', { ascending: false })
                     if (fallbackData) setPedidos(fallbackData)
                 }
@@ -292,6 +293,7 @@ export default function PedidosPage() {
                                         <TableCell>
                                             <div className="font-medium">{pedido.clientes?.nombre || 'Anónimo'}</div>
                                             <div className="text-xs text-gray-500">{pedido.clientes?.telefono}</div>
+                                            <div className="text-xs text-gray-500">DNI: {pedido.clientes?.dni || '—'}</div>
                                         </TableCell>
                                         <TableCell>{new Date(pedido.created_at).toLocaleDateString()}</TableCell>
                                         <TableCell className="font-bold">{formatCurrency(pedido.total)}</TableCell>
@@ -317,7 +319,7 @@ export default function PedidosPage() {
                                                         <SelectItem value="unassigned">
                                                             <span className="text-gray-500">Sin asignar</span>
                                                         </SelectItem>
-                                                        {workers.map(w => (
+                                                        {workers.map((w) => (
                                                             <SelectItem key={w.id} value={w.id}>
                                                                 {w.nombre || w.email}
                                                             </SelectItem>

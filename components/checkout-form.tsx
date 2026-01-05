@@ -45,6 +45,8 @@ export function CheckoutForm({ items, total, onBack, onComplete }: CheckoutFormP
 function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
     const [name, setName] = useState("")
     const [phone, setPhone] = useState("")
+    const [dni, setDni] = useState("")
+    const [dniError, setDniError] = useState("")
     const [reference, setReference] = useState("")
     const [locationLink, setLocationLink] = useState("")
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -152,6 +154,14 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
         setIsSubmitting(true)
 
         setCouponError("")
+        setDniError("")
+
+        const normalizedDni = String(dni || '').replace(/\D/g, '').slice(0, 8)
+        if (normalizedDni.length !== 8) {
+            setDniError('El DNI debe tener 8 dígitos')
+            setIsSubmitting(false)
+            return
+        }
 
         let appliedCouponCode: string | null = null
         let appliedDiscount = discountAmount
@@ -181,6 +191,7 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
         let messageClientePreview = `¡Hola! Soy ${name || 'Cliente'}. Quiero confirmar mi pedido: 🛍️\n`;
         messageClientePreview += `*DATOS DE ENVÍO*:\n`;
         messageClientePreview += `Cliente: ${name}\n`;
+        messageClientePreview += `DNI: ${normalizedDni}\n`;
         messageClientePreview += `Teléfono: ${phone}\n`;
         messageClientePreview += `Dirección: ${value || ''}\n`;
         if (reference) messageClientePreview += `Referencia: ${reference}\n`;
@@ -243,11 +254,11 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
 
             if (existingClients && existingClients.length > 0) {
                 clienteId = existingClients[0].id
-                await supabase.from('clientes').update({ nombre: name, direccion: direccionCompleta }).eq('id', clienteId)
+                await supabase.from('clientes').update({ nombre: name, dni: normalizedDni, direccion: direccionCompleta }).eq('id', clienteId)
             } else {
                 const { data: newClient, error: clientError } = await supabase
                     .from('clientes')
-                    .insert({ nombre: name, telefono: phone, direccion: direccionCompleta })
+                    .insert({ nombre: name, telefono: phone, dni: normalizedDni, direccion: direccionCompleta })
                     .select()
                     .single()
 
@@ -320,6 +331,7 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
             messageCliente += `📋 *Pedido #${orderIdFormatted}*\n\n`
             messageCliente += `*DATOS DE ENVÍO* 📦\n`
             messageCliente += `👤 *Cliente:* ${name}\n`
+            messageCliente += `🪪 *DNI:* ${normalizedDni}\n`
             messageCliente += `📱 *Teléfono:* ${phone}\n`
             messageCliente += `📍 *Dirección:* ${value}\n`
             if (reference) messageCliente += `🏠 *Referencia:* ${reference}\n`
@@ -339,12 +351,13 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
 
             // F. ⭐ NOTIFICACIÓN AUTOMÁTICA AL ADMIN (Twilio)
             try {
-                await fetch('/api/notify-admin', {
+                const notifyRes = await fetch('/api/notify-admin', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         orderId: orderIdFormatted,
                         clientName: name,
+                        clientDni: normalizedDni,
                         clientPhone: phone,
                         address: `${value} ${reference ? `(Ref: ${reference})` : ''}`,
                         items: items,
@@ -352,7 +365,17 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
                         panelLink: `${window.location.origin}/admin/pedidos/${newOrder.id}`
                     })
                 })
-                console.log('Admin notification sent via Twilio')
+                let notifyJson: any = null
+                try {
+                    notifyJson = await notifyRes.json()
+                } catch (err) {
+                    notifyJson = null
+                }
+                if (!notifyRes.ok) {
+                    console.error('Admin notification failed:', notifyRes.status, notifyJson)
+                } else {
+                    console.log('Admin notification response:', notifyJson)
+                }
             } catch (notifyError) {
                 // No bloqueamos el flujo si falla la notificación
                 console.error('Error sending admin notification:', notifyError)
@@ -433,6 +456,33 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
                 <div className="space-y-2">
                     <Label htmlFor="phone">Celular</Label>
                     <Input id="phone" required type="tel" placeholder="999 999 999" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isSubmitting} />
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="dni">DNI</Label>
+                    <Input
+                        id="dni"
+                        required
+                        inputMode="numeric"
+                        pattern="[0-9]{8}"
+                        minLength={8}
+                        maxLength={8}
+                        placeholder="12345678"
+                        value={dni}
+                        onChange={(e) => {
+                            const next = e.target.value.replace(/\D/g, '').slice(0, 8)
+                            setDni(next)
+                            if (dniError) setDniError("")
+                        }}
+                        onInvalid={(e) => {
+                            e.currentTarget.setCustomValidity('Ingresa un DNI válido de 8 dígitos')
+                        }}
+                        onInput={(e) => {
+                            e.currentTarget.setCustomValidity('')
+                        }}
+                        disabled={isSubmitting}
+                    />
+                    {dniError && <p className="text-xs text-destructive">{dniError}</p>}
                 </div>
 
                 <div className="space-y-2 relative">
