@@ -39,7 +39,7 @@ export function Header() {
                     </Sheet>
 
                     <Link href="/" className="text-xl font-extrabold tracking-tight text-primary">
-                        Tienda WhatsApp Pro
+                        Blama Shop
                     </Link>
                 </div>
 

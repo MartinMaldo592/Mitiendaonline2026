@@ -184,7 +184,19 @@ export default function PedidosPage() {
             // Refresh list
             fetchPedidos(userRole, userId)
         } else {
-            alert("Error al asignar: " + error.message)
+            const code = String((error as any)?.code || '')
+            const msg = String((error as any)?.message || '')
+            const lower = msg.toLowerCase()
+            if (
+                code === '42501' ||
+                lower.includes('permission denied') ||
+                lower.includes('row level security') ||
+                lower.includes('violates row-level security')
+            ) {
+                alert('No tienes permisos para realizar esta acción.')
+            } else {
+                alert('Error al asignar: ' + msg)
+            }
         }
     }
 

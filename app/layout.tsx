@@ -15,8 +15,24 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Tienda WhatsApp Pro",
-  description: "Tienda online con pedidos directos a WhatsApp.",
+  title: {
+    default: "Blama Shop",
+    template: "%s | Blama Shop",
+  },
+  applicationName: "Blama Shop",
+  description: "Blama Shop - Tienda online con pedidos directos a WhatsApp.",
+  openGraph: {
+    title: "Blama Shop",
+    description: "Blama Shop - Tienda online con pedidos directos a WhatsApp.",
+    type: "website",
+    locale: "es_ES",
+    siteName: "Blama Shop",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Blama Shop",
+    description: "Blama Shop - Tienda online con pedidos directos a WhatsApp.",
+  },
 };
 
 export default function RootLayout({

@@ -99,6 +99,7 @@ export interface Database {
                     descuento?: number | null
                     cupon_codigo?: string | null
                     total: number
+                    stock_descontado: boolean
                     status: 'Pendiente' | 'Confirmado' | 'Preparando' | 'Enviado' | 'Entregado' | 'Fallido' | 'Devuelto'
                     pago_status: 'Pendiente' | 'Pagado Anticipado' | 'Pago Contraentrega' | 'Pagado al Recibir'
                     voucher_url: string | null
@@ -111,6 +112,7 @@ export interface Database {
                     descuento?: number | null
                     cupon_codigo?: string | null
                     total: number
+                    stock_descontado?: boolean
                     status?: 'Pendiente' | 'Confirmado' | 'Preparando' | 'Enviado' | 'Entregado' | 'Fallido' | 'Devuelto'
                     pago_status?: 'Pendiente' | 'Pagado Anticipado' | 'Pago Contraentrega' | 'Pagado al Recibir'
                     voucher_url?: string | null
@@ -123,6 +125,7 @@ export interface Database {
                     descuento?: number | null
                     cupon_codigo?: string | null
                     total?: number
+                    stock_descontado?: boolean
                     status?: 'Pendiente' | 'Confirmado' | 'Preparando' | 'Enviado' | 'Entregado' | 'Fallido' | 'Devuelto'
                     pago_status?: 'Pendiente' | 'Pagado Anticipado' | 'Pago Contraentrega' | 'Pagado al Recibir'
                     voucher_url?: string | null
@@ -156,6 +159,7 @@ export interface Database {
                     tipo: string | null
                     comentario: string | null
                     foto: string | null
+                    fotos: string[] | null
                     created_at: string
                 }
                 Insert: {
@@ -164,6 +168,7 @@ export interface Database {
                     tipo?: string | null
                     comentario?: string | null
                     foto?: string | null
+                    fotos?: string[] | null
                     created_at?: string
                 }
                 Update: {
@@ -172,6 +177,7 @@ export interface Database {
                     tipo?: string | null
                     comentario?: string | null
                     foto?: string | null
+                    fotos?: string[] | null
                     created_at?: string
                 }
             }

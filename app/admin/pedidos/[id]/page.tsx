@@ -30,6 +30,25 @@ export default function PedidoDetallePage() {
     const [assignedTo, setAssignedTo] = useState<string>("unassigned")
     const [userRole, setUserRole] = useState<string>('worker')
 
+    function showPermissionAlertIfNeeded(error: any, fallbackMessage: string) {
+        const code = String((error as any)?.code || '')
+        const msg = String((error as any)?.message || '')
+        const lower = msg.toLowerCase()
+
+        if (
+            code === '42501' ||
+            lower.includes('permission denied') ||
+            lower.includes('row level security') ||
+            lower.includes('violates row-level security')
+        ) {
+            alert('No tienes permisos para realizar esta acción.')
+            return true
+        }
+
+        alert(fallbackMessage + msg)
+        return false
+    }
+
     useEffect(() => {
         if (id) initPage()
     }, [id])
@@ -120,13 +139,67 @@ export default function PedidoDetallePage() {
             setAssignedTo(workerId)
             fetchPedido()
         } else {
-            alert("Error al asignar: " + error.message)
+            showPermissionAlertIfNeeded(error, 'Error al asignar: ')
         }
     }
 
     async function handleUpdateStatus() {
         setUpdating(true)
         console.log("Updating status to:", status)
+
+        // Si el admin confirma el pedido, descontamos stock una sola vez.
+        // Esto evita descontar cuando el cliente solo "crea" el pedido.
+        if (status === 'Confirmado' && !pedido?.stock_descontado) {
+            try {
+                const { data: itemsData, error: itemsError } = await supabase
+                    .from('pedido_items')
+                    .select('producto_id, cantidad')
+                    .eq('pedido_id', id)
+
+                if (itemsError) throw itemsError
+
+                const safeItems = (itemsData || []).filter((it: any) => it.producto_id)
+
+                for (const it of safeItems) {
+                    const productoId = Number(it.producto_id)
+                    const qty = Number(it.cantidad || 0)
+                    if (!productoId || qty <= 0) continue
+
+                    const { data: producto, error: prodError } = await supabase
+                        .from('productos')
+                        .select('stock')
+                        .eq('id', productoId)
+                        .single()
+
+                    if (prodError) throw prodError
+
+                    const currentStock = Number((producto as any)?.stock ?? 0)
+                    const newStock = Math.max(0, currentStock - qty)
+
+                    const { error: updError } = await supabase
+                        .from('productos')
+                        .update({ stock: newStock })
+                        .eq('id', productoId)
+
+                    if (updError) throw updError
+                }
+
+                const { error: markError } = await supabase
+                    .from('pedidos')
+                    .update({ stock_descontado: true })
+                    .eq('id', id)
+
+                if (markError) throw markError
+            } catch (err: any) {
+                console.error('Error descontando stock:', err)
+                const showed = showPermissionAlertIfNeeded(err, 'No se pudo descontar el stock. Verifica el inventario y vuelve a intentar.\n')
+                if (!showed && !String(err?.message || '')) {
+                    alert('No se pudo descontar el stock. Verifica el inventario y vuelve a intentar.')
+                }
+                setUpdating(false)
+                return
+            }
+        }
 
         const { error } = await supabase
             .from('pedidos')
@@ -138,7 +211,7 @@ export default function PedidoDetallePage() {
             fetchPedido() // Refresh
         } else {
             console.error("Error updating status:", error)
-            alert("Error al actualizar: " + error.message)
+            showPermissionAlertIfNeeded(error, 'Error al actualizar: ')
         }
         setUpdating(false)
     }

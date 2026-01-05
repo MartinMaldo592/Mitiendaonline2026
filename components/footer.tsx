@@ -8,7 +8,7 @@ export function Footer() {
             <div className="container mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-8">
                 {/* Brand */}
                 <div className="space-y-4">
-                    <h3 className="text-xl font-bold text-sidebar-primary-foreground">Tienda WhatsApp Pro</h3>
+                    <h3 className="text-xl font-bold text-sidebar-primary-foreground">Blama Shop</h3>
                     <p className="text-sm text-muted-foreground">
                         La mejor experiencia de compra online con atención personalizada vía WhatsApp.
                     </p>
@@ -46,7 +46,7 @@ export function Footer() {
                 </div>
             </div>
             <div className="border-t border-border mt-8 pt-8 text-center text-xs text-muted-foreground">
-                © {new Date().getFullYear()} Tienda WhatsApp Pro. Todos los derechos reservados.
+                © {new Date().getFullYear()} Blama Shop. Todos los derechos reservados.
             </div>
         </footer>
     )

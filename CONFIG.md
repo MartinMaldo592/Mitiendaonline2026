@@ -1,4 +1,4 @@
-# Tienda WhatsApp Pro - Configuración
+# Blama Shop - Configuración
 # =====================================
 # Este archivo contiene la configuración del proyecto.
 # Copia las variables necesarias a tu archivo .env.local

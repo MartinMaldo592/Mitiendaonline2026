@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient"
 import { useCartStore } from "@/store/cart"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import Link from "next/link"
 import {
     Sheet,
     SheetContent,
@@ -468,25 +469,27 @@ function ProductosPageContent() {
                                 <div key={producto.id} className="bg-card rounded-xl shadow-sm border border-border overflow-hidden group hover:shadow-lg transition-all">
                                     {/* Image */}
                                     <div className="aspect-square bg-popover relative overflow-hidden">
-                                        {((Array.isArray((producto as any).imagenes) && ((producto as any).imagenes as string[]).filter(Boolean).length > 0) || producto.imagen_url) ? (
-                                            <ProductImageCarousel
-                                                images={
-                                                    (Array.isArray((producto as any).imagenes)
-                                                        ? (((producto as any).imagenes as string[]) || []).filter(Boolean).slice(0, 10)
-                                                        : producto.imagen_url
-                                                            ? [producto.imagen_url]
-                                                            : [])
-                                                }
-                                                alt={producto.nombre}
-                                                className="group-hover:scale-105 transition-transform duration-300"
-                                                autoPlay
-                                                intervalMs={2500}
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                                                Sin imagen
-                                            </div>
-                                        )}
+                                        <Link href={`/productos/${producto.id}`} className="absolute inset-0">
+                                            {((Array.isArray((producto as any).imagenes) && ((producto as any).imagenes as string[]).filter(Boolean).length > 0) || producto.imagen_url) ? (
+                                                <ProductImageCarousel
+                                                    images={
+                                                        (Array.isArray((producto as any).imagenes)
+                                                            ? (((producto as any).imagenes as string[]) || []).filter(Boolean).slice(0, 10)
+                                                            : producto.imagen_url
+                                                                ? [producto.imagen_url]
+                                                                : [])
+                                                    }
+                                                    alt={producto.nombre}
+                                                    className="group-hover:scale-105 transition-transform duration-300"
+                                                    autoPlay
+                                                    intervalMs={2500}
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                                                    Sin imagen
+                                                </div>
+                                            )}
+                                        </Link>
                                         {producto.stock <= 0 && (
                                             <div className="absolute inset-0 bg-foreground/60 flex items-center justify-center">
                                                 <span className="text-sidebar-primary-foreground font-bold">Agotado</span>
@@ -496,7 +499,9 @@ function ProductosPageContent() {
 
                                     {/* Info */}
                                     <div className="p-4">
-                                        <h3 className="font-semibold text-foreground mb-1 line-clamp-2">{producto.nombre}</h3>
+                                        <Link href={`/productos/${producto.id}`} className="hover:underline">
+                                            <h3 className="font-semibold text-foreground mb-1 line-clamp-2">{producto.nombre}</h3>
+                                        </Link>
                                         <p className="text-xl font-bold text-primary mb-3">{formatCurrency(producto.precio)}</p>
 
                                         {producto.stock > 0 ? (

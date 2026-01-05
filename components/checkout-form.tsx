@@ -305,24 +305,6 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
             const { error: itemsError } = await supabase.from('pedido_items').insert(orderItems)
             if (itemsError) throw new Error(itemsError.message)
 
-            // D. ⭐ DESCUENTO AUTOMÁTICO DE STOCK
-            for (const item of items) {
-                // Get current stock
-                const { data: producto } = await supabase
-                    .from('productos')
-                    .select('stock')
-                    .eq('id', item.id)
-                    .single()
-
-                if (producto) {
-                    const newStock = Math.max(0, producto.stock - item.quantity)
-                    await supabase
-                        .from('productos')
-                        .update({ stock: newStock })
-                        .eq('id', item.id)
-                }
-            }
-
             // E. WhatsApp mensaje al cliente
             const phoneNumberCliente = process.env.NEXT_PUBLIC_WHATSAPP_TIENDA || "982432561"
             const orderIdFormatted = newOrder.id.toString().padStart(6, '0')

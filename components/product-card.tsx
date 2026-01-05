@@ -1,6 +1,7 @@
 
 "use client"
 
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Plus, Image as ImageIcon } from "lucide-react"
@@ -37,27 +38,31 @@ export function ProductCard({ product }: ProductCardProps) {
 
     return (
         <Card className="group overflow-hidden border-none shadow-sm hover:shadow-md transition-all duration-300 bg-card flex flex-col rounded-xl">
-            <div className="aspect-square bg-popover relative overflow-hidden">
-                {fallbackImages.length > 0 ? (
-                    <ProductImageCarousel
-                        images={fallbackImages}
-                        alt={product.nombre}
-                        className="group-hover:scale-105 transition-transform duration-300"
-                        autoPlay
-                        intervalMs={2500}
-                    />
-                ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-muted-foreground group-hover:scale-110 transition-transform duration-300">
-                        <ImageIcon className="h-10 w-10 opacity-50" />
-                    </div>
-                )}
-                {/* Quick Action Overlay */}
-                <div className="absolute inset-0 bg-foreground/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
+            <Link href={`/productos/${product.id}`} className="block">
+                <div className="aspect-square bg-popover relative overflow-hidden">
+                    {fallbackImages.length > 0 ? (
+                        <ProductImageCarousel
+                            images={fallbackImages}
+                            alt={product.nombre}
+                            className="group-hover:scale-105 transition-transform duration-300"
+                            autoPlay
+                            intervalMs={2500}
+                        />
+                    ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-muted-foreground group-hover:scale-110 transition-transform duration-300">
+                            <ImageIcon className="h-10 w-10 opacity-50" />
+                        </div>
+                    )}
+                    {/* Quick Action Overlay */}
+                    <div className="absolute inset-0 bg-foreground/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+            </Link>
 
             <CardContent className="p-3 flex-1 flex flex-col justify-between">
                 <div>
-                    <h4 className="font-medium text-sm line-clamp-2 leading-tight mb-1 text-gray-700">{product.nombre}</h4>
+                    <Link href={`/productos/${product.id}`} className="hover:underline">
+                        <h4 className="font-medium text-sm line-clamp-2 leading-tight mb-1 text-gray-700">{product.nombre}</h4>
+                    </Link>
                 </div>
                 <div className="mt-1">
                     <p className="text-lg font-bold text-foreground">{formatCurrency(product.precio)}</p>
