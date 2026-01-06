@@ -28,6 +28,40 @@ export function CartButton() {
 
     useEffect(() => {
         setMounted(true)
+
+        const consumeSuccessMarker = () => {
+            try {
+                const raw = localStorage.getItem('blama_last_order_success')
+                if (!raw) return
+
+                const parsed = JSON.parse(raw)
+                const ts = Number(parsed?.ts || 0)
+                const isFresh = ts > 0 && Date.now() - ts < 1000 * 60 * 30 // 30 min
+                if (!isFresh) {
+                    localStorage.removeItem('blama_last_order_success')
+                    return
+                }
+
+                clearCart()
+                setView('success')
+                localStorage.removeItem('blama_last_order_success')
+            } catch (err) {
+            }
+        }
+
+        consumeSuccessMarker()
+
+        const onPageShow = () => consumeSuccessMarker()
+        const onVisibility = () => {
+            if (document.visibilityState === 'visible') consumeSuccessMarker()
+        }
+
+        window.addEventListener('pageshow', onPageShow)
+        document.addEventListener('visibilitychange', onVisibility)
+        return () => {
+            window.removeEventListener('pageshow', onPageShow)
+            document.removeEventListener('visibilitychange', onVisibility)
+        }
     }, [])
 
     const totalItems = mounted ? items.reduce((sum, item) => sum + item.quantity, 0) : 0
@@ -125,7 +159,7 @@ export function CartButton() {
                                 </div>
                             ) : (
                                 items.map((item) => (
-                                    <div key={item.id} className="flex gap-3 bg-card p-2 rounded-lg border border-border shadow-sm">
+                                    <div key={`${item.id}-${item.producto_variante_id ?? 'base'}`} className="flex gap-3 bg-card p-2 rounded-lg border border-border shadow-sm">
                                             <div className="h-20 w-20 bg-popover rounded-md overflow-hidden flex-shrink-0">
                                             {item.imagen_url ? (
                                                 <img src={item.imagen_url} alt={item.nombre} className="h-full w-full object-cover" />
@@ -139,6 +173,9 @@ export function CartButton() {
                                             <div className="flex-1 flex flex-col justify-between">
                                             <div>
                                                 <h4 className="font-semibold text-sm line-clamp-1">{item.nombre}</h4>
+                                                {item.variante_nombre && (
+                                                    <p className="text-xs text-muted-foreground">{item.variante_nombre}</p>
+                                                )}
                                                 <p className="text-xs text-muted-foreground">Unitario: {formatCurrency(item.precio)}</p>
                                             </div>
 
@@ -148,7 +185,7 @@ export function CartButton() {
                                                         variant="ghost"
                                                         size="icon"
                                                         className="h-6 w-6"
-                                                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                                        onClick={() => updateQuantity(item.id, item.quantity - 1, item.producto_variante_id ?? null)}
                                                         disabled={item.quantity <= 1}
                                                     >
                                                         <Minus className="h-3 w-3" />
@@ -158,7 +195,7 @@ export function CartButton() {
                                                         variant="ghost"
                                                         size="icon"
                                                         className="h-6 w-6"
-                                                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                                        onClick={() => updateQuantity(item.id, item.quantity + 1, item.producto_variante_id ?? null)}
                                                     >
                                                         <Plus className="h-3 w-3" />
                                                     </Button>
@@ -168,7 +205,7 @@ export function CartButton() {
                                                     variant="ghost"
                                                     size="icon"
                                                     className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                                    onClick={() => removeItem(item.id)}
+                                                    onClick={() => removeItem(item.id, item.producto_variante_id ?? null)}
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>

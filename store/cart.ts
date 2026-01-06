@@ -5,15 +5,19 @@ import { Database } from '@/types/database.types'
 
 type Product = Database['public']['Tables']['productos']['Row']
 
+export type ProductVariant = Database['public']['Tables']['producto_variantes']['Row']
+
 interface CartItem extends Product {
     quantity: number
+    producto_variante_id?: number | null
+    variante_nombre?: string | null
 }
 
 interface CartState {
     items: CartItem[]
-    addItem: (product: Product) => void
-    removeItem: (productId: number) => void
-    updateQuantity: (productId: number, quantity: number) => void
+    addItem: (product: Product, variant?: ProductVariant | null) => void
+    removeItem: (productId: number, variantId?: number | null) => void
+    updateQuantity: (productId: number, quantity: number, variantId?: number | null) => void
     clearCart: () => void
     total: number
 }
@@ -23,46 +27,59 @@ export const useCartStore = create<CartState>()(
         (set, get) => ({
             items: [],
             total: 0,
-            addItem: (product) => {
-                const items = get().items
-                const existingItem = items.find((item) => item.id === product.id)
+            addItem: (product, variant) => {
+                set((state) => {
+                    const items = state.items
+                    const variantId = variant?.id ?? null
+                    const existingItem = items.find((item) => item.id === product.id && (item.producto_variante_id ?? null) === variantId)
 
-                if (existingItem) {
-                    set({
-                        items: items.map((item) =>
-                            item.id === product.id
+                    const effectivePrice = Number(variant?.precio ?? product.precio)
+                    const effectivePriceBefore = (variant?.precio_antes ?? (product as any).precio_antes ?? null) as number | null
+                    const varianteNombre = variant?.etiqueta ?? null
+
+                    const nextItems = existingItem
+                        ? items.map((item) =>
+                            item.id === product.id && (item.producto_variante_id ?? null) === variantId
                                 ? { ...item, quantity: item.quantity + 1 }
                                 : item
-                        ),
-                    })
-                } else {
-                    set({ items: [...items, { ...product, quantity: 1 }] })
-                }
+                        )
+                        : [
+                            ...items,
+                            {
+                                ...product,
+                                precio: effectivePrice,
+                                precio_antes: effectivePriceBefore,
+                                producto_variante_id: variantId,
+                                variante_nombre: varianteNombre,
+                                quantity: 1,
+                            },
+                        ]
 
-                // Recalculate total
-                const newItems = get().items
-                const total = newItems.reduce((sum, item) => sum + (item.precio * item.quantity), 0)
-                set({ total })
+                    const total = nextItems.reduce((sum, item) => sum + (item.precio * item.quantity), 0)
+                    return { items: nextItems, total }
+                })
             },
-            removeItem: (productId) => {
-                set({ items: get().items.filter((item) => item.id !== productId) })
-                const newItems = get().items
-                const total = newItems.reduce((sum, item) => sum + (item.precio * item.quantity), 0)
-                set({ total })
+            removeItem: (productId, variantId) => {
+                const v = variantId ?? null
+                set((state) => {
+                    const nextItems = state.items.filter((item) => !(item.id === productId && (item.producto_variante_id ?? null) === v))
+                    const total = nextItems.reduce((sum, item) => sum + (item.precio * item.quantity), 0)
+                    return { items: nextItems, total }
+                })
             },
-            updateQuantity: (productId, quantity) => {
+            updateQuantity: (productId, quantity, variantId) => {
+                const v = variantId ?? null
                 if (quantity <= 0) {
-                    get().removeItem(productId)
+                    get().removeItem(productId, v)
                     return
                 }
-                set({
-                    items: get().items.map((item) =>
-                        item.id === productId ? { ...item, quantity } : item
+                set((state) => {
+                    const nextItems = state.items.map((item) =>
+                        item.id === productId && (item.producto_variante_id ?? null) === v ? { ...item, quantity } : item
                     )
+                    const total = nextItems.reduce((sum, item) => sum + (item.precio * item.quantity), 0)
+                    return { items: nextItems, total }
                 })
-                const newItems = get().items
-                const total = newItems.reduce((sum, item) => sum + (item.precio * item.quantity), 0)
-                set({ total })
             },
             clearCart: () => set({ items: [], total: 0 }),
         }),

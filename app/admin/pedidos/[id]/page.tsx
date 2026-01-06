@@ -153,7 +153,7 @@ export default function PedidoDetallePage() {
             try {
                 const { data: itemsData, error: itemsError } = await supabase
                     .from('pedido_items')
-                    .select('producto_id, cantidad')
+                    .select('producto_id, producto_variante_id, cantidad')
                     .eq('pedido_id', id)
 
                 if (itemsError) throw itemsError
@@ -162,26 +162,47 @@ export default function PedidoDetallePage() {
 
                 for (const it of safeItems) {
                     const productoId = Number(it.producto_id)
+                    const varianteId = it.producto_variante_id != null ? Number(it.producto_variante_id) : null
                     const qty = Number(it.cantidad || 0)
                     if (!productoId || qty <= 0) continue
 
-                    const { data: producto, error: prodError } = await supabase
-                        .from('productos')
-                        .select('stock')
-                        .eq('id', productoId)
-                        .single()
+                    if (varianteId) {
+                        const { data: variante, error: varError } = await supabase
+                            .from('producto_variantes')
+                            .select('stock')
+                            .eq('id', varianteId)
+                            .single()
 
-                    if (prodError) throw prodError
+                        if (varError) throw varError
 
-                    const currentStock = Number((producto as any)?.stock ?? 0)
-                    const newStock = Math.max(0, currentStock - qty)
+                        const currentStock = Number((variante as any)?.stock ?? 0)
+                        const newStock = Math.max(0, currentStock - qty)
 
-                    const { error: updError } = await supabase
-                        .from('productos')
-                        .update({ stock: newStock })
-                        .eq('id', productoId)
+                        const { error: updError } = await supabase
+                            .from('producto_variantes')
+                            .update({ stock: newStock })
+                            .eq('id', varianteId)
 
-                    if (updError) throw updError
+                        if (updError) throw updError
+                    } else {
+                        const { data: producto, error: prodError } = await supabase
+                            .from('productos')
+                            .select('stock')
+                            .eq('id', productoId)
+                            .single()
+
+                        if (prodError) throw prodError
+
+                        const currentStock = Number((producto as any)?.stock ?? 0)
+                        const newStock = Math.max(0, currentStock - qty)
+
+                        const { error: updError } = await supabase
+                            .from('productos')
+                            .update({ stock: newStock })
+                            .eq('id', productoId)
+
+                        if (updError) throw updError
+                    }
                 }
 
                 const { error: markError } = await supabase

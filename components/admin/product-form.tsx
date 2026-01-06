@@ -31,11 +31,22 @@ export function ProductForm({ productToEdit, onSuccess, onCancel }: ProductFormP
     // Form State
     const [name, setName] = useState("")
     const [price, setPrice] = useState("")
+    const [priceBefore, setPriceBefore] = useState("")
     const [stock, setStock] = useState("")
     const [imageUrl, setImageUrl] = useState("")
     const [galleryImages, setGalleryImages] = useState<string[]>([])
     const [newGalleryUrl, setNewGalleryUrl] = useState("")
     const [categoryId, setCategoryId] = useState<string>("default")
+
+    const [descripcion, setDescripcion] = useState("")
+    const [materiales, setMateriales] = useState("")
+    const [tamano, setTamano] = useState("")
+    const [color, setColor] = useState("")
+    const [cuidados, setCuidados] = useState("")
+    const [uso, setUso] = useState("")
+
+    const [especificaciones, setEspecificaciones] = useState<Array<{ id?: number; clave: string; valor: string; orden: number }>>([])
+    const [variantes, setVariantes] = useState<Array<{ id?: number; etiqueta: string; precio: string; precio_antes: string; stock: string; activo: boolean }>>([])
 
     // Create Category State
     const [isCreatingCategory, setIsCreatingCategory] = useState(false)
@@ -49,8 +60,15 @@ export function ProductForm({ productToEdit, onSuccess, onCancel }: ProductFormP
         if (productToEdit) {
             setName(productToEdit.nombre || "")
             setPrice(productToEdit.precio?.toString() || "")
+            setPriceBefore(productToEdit.precio_antes != null ? String(productToEdit.precio_antes) : "")
             setStock(productToEdit.stock?.toString() || "")
             setImageUrl(productToEdit.imagen_url || "")
+            setDescripcion(productToEdit.descripcion || "")
+            setMateriales(productToEdit.materiales || "")
+            setTamano(productToEdit.tamano || "")
+            setColor(productToEdit.color || "")
+            setCuidados(productToEdit.cuidados || "")
+            setUso(productToEdit.uso || "")
             const fromDb = Array.isArray(productToEdit.imagenes) ? (productToEdit.imagenes as string[]) : []
             const normalized = [
                 ...(productToEdit.imagen_url ? [productToEdit.imagen_url] : []),
@@ -62,15 +80,73 @@ export function ProductForm({ productToEdit, onSuccess, onCancel }: ProductFormP
             setGalleryImages(unique)
             setNewGalleryUrl("")
             setCategoryId(productToEdit.categoria_id?.toString() || "default")
+
+            ;(async () => {
+                try {
+                    const productId = Number(productToEdit.id)
+                    if (!productId) {
+                        setEspecificaciones([])
+                        setVariantes([])
+                        return
+                    }
+                    const [specRes, varRes] = await Promise.all([
+                        supabase
+                            .from('producto_especificaciones')
+                            .select('*')
+                            .eq('producto_id', productId)
+                            .order('orden', { ascending: true })
+                            .order('id', { ascending: true }),
+                        supabase
+                            .from('producto_variantes')
+                            .select('*')
+                            .eq('producto_id', productId)
+                            .order('id', { ascending: true }),
+                    ])
+
+                    const nextSpecs = Array.isArray(specRes.data)
+                        ? specRes.data.map((s: any) => ({
+                            id: Number(s.id),
+                            clave: String(s.clave || ''),
+                            valor: String(s.valor || ''),
+                            orden: Number(s.orden || 0),
+                        }))
+                        : []
+                    setEspecificaciones(nextSpecs)
+
+                    const nextVars = Array.isArray(varRes.data)
+                        ? varRes.data.map((v: any) => ({
+                            id: Number(v.id),
+                            etiqueta: String(v.etiqueta || ''),
+                            precio: v.precio != null ? String(v.precio) : '',
+                            precio_antes: v.precio_antes != null ? String(v.precio_antes) : '',
+                            stock: String(v.stock ?? 0),
+                            activo: Boolean(v.activo ?? true),
+                        }))
+                        : []
+                    setVariantes(nextVars)
+                } catch (err) {
+                    setEspecificaciones([])
+                    setVariantes([])
+                }
+            })()
         } else {
             // Reset form when not editing (or switching to new)
             setName("")
             setPrice("")
+            setPriceBefore("")
             setStock("")
             setImageUrl("")
+            setDescripcion("")
+            setMateriales("")
+            setTamano("")
+            setColor("")
+            setCuidados("")
+            setUso("")
             setGalleryImages([])
             setNewGalleryUrl("")
             setCategoryId("default")
+            setEspecificaciones([])
+            setVariantes([])
         }
     }, [productToEdit])
 
@@ -201,6 +277,34 @@ export function ProductForm({ productToEdit, onSuccess, onCancel }: ProductFormP
         setLoading(true)
 
         try {
+            const priceNum = Number(price)
+            if (!Number.isFinite(priceNum) || priceNum <= 0) {
+                alert('Ingresa un precio actual válido')
+                setLoading(false)
+                return
+            }
+
+            const priceBeforeRaw = String(priceBefore || '').trim()
+            const priceBeforeNum = priceBeforeRaw ? Number(priceBeforeRaw) : null
+            if (priceBeforeNum != null && (!Number.isFinite(priceBeforeNum) || priceBeforeNum <= 0)) {
+                alert('Ingresa un precio antes válido o déjalo vacío')
+                setLoading(false)
+                return
+            }
+
+            if (priceBeforeNum != null && priceBeforeNum <= priceNum) {
+                alert('El precio antes debe ser mayor que el precio actual para mostrar oferta')
+                setLoading(false)
+                return
+            }
+
+            const stockNum = Number(stock)
+            if (!Number.isFinite(stockNum) || stockNum < 0) {
+                alert('Ingresa un stock válido')
+                setLoading(false)
+                return
+            }
+
             const mergedImages = galleryImages.length > 0
                 ? normalizeImages(galleryImages)
                 : normalizeImages([...(imageUrl ? [imageUrl] : [])])
@@ -208,10 +312,17 @@ export function ProductForm({ productToEdit, onSuccess, onCancel }: ProductFormP
 
             const productData = {
                 nombre: name,
-                precio: parseFloat(price),
-                stock: parseInt(stock),
+                precio: priceNum,
+                precio_antes: priceBeforeNum,
+                stock: stockNum,
                 imagen_url: mainImage,
                 imagenes: mergedImages,
+                descripcion: descripcion.trim() || null,
+                materiales: materiales.trim() || null,
+                tamano: tamano.trim() || null,
+                color: color.trim() || null,
+                cuidados: cuidados.trim() || null,
+                uso: uso.trim() || null,
                 categoria_id: categoryId === 'default' ? null : parseInt(categoryId)
             }
 
@@ -222,9 +333,9 @@ export function ProductForm({ productToEdit, onSuccess, onCancel }: ProductFormP
                 if (!withGallery) delete payload.imagenes
 
                 if (productToEdit) {
-                    return supabase.from('productos').update(payload).eq('id', productToEdit.id)
+                    return supabase.from('productos').update(payload).eq('id', productToEdit.id).select('id').single()
                 }
-                return supabase.from('productos').insert(payload)
+                return supabase.from('productos').insert(payload).select('id').single()
             }
 
             const first = await save(true)
@@ -235,6 +346,76 @@ export function ProductForm({ productToEdit, onSuccess, onCancel }: ProductFormP
             }
 
             if (error) throw error
+
+            const savedProductId = productToEdit?.id
+                ? Number(productToEdit.id)
+                : (first as any)?.data?.id
+                    ? Number((first as any).data.id)
+                    : null
+
+            if (savedProductId) {
+                const cleanSpecs = especificaciones
+                    .map((s) => ({
+                        ...s,
+                        clave: String(s.clave || '').trim(),
+                        valor: String(s.valor || '').trim(),
+                        orden: Number(s.orden || 0),
+                    }))
+                    .filter((s) => s.clave.length > 0)
+
+                const cleanVariants = variantes
+                    .map((v) => ({
+                        ...v,
+                        etiqueta: String(v.etiqueta || '').trim(),
+                        precio: String(v.precio || '').trim(),
+                        precio_antes: String(v.precio_antes || '').trim(),
+                        stock: String(v.stock || '').trim(),
+                        activo: Boolean(v.activo),
+                    }))
+                    .filter((v) => v.etiqueta.length > 0)
+
+                const { error: delSpecsErr } = await supabase
+                    .from('producto_especificaciones')
+                    .delete()
+                    .eq('producto_id', savedProductId)
+                if (delSpecsErr) throw delSpecsErr
+
+                if (cleanSpecs.length > 0) {
+                    const { error: insSpecsErr } = await supabase
+                        .from('producto_especificaciones')
+                        .insert(
+                            cleanSpecs.map((s) => ({
+                                producto_id: savedProductId,
+                                clave: s.clave,
+                                valor: s.valor || null,
+                                orden: Number(s.orden || 0),
+                            }))
+                        )
+                    if (insSpecsErr) throw insSpecsErr
+                }
+
+                const { error: delVarErr } = await supabase
+                    .from('producto_variantes')
+                    .delete()
+                    .eq('producto_id', savedProductId)
+                if (delVarErr) throw delVarErr
+
+                if (cleanVariants.length > 0) {
+                    const { error: insVarErr } = await supabase
+                        .from('producto_variantes')
+                        .insert(
+                            cleanVariants.map((v) => ({
+                                producto_id: savedProductId,
+                                etiqueta: v.etiqueta,
+                                precio: v.precio ? Number(v.precio) : null,
+                                precio_antes: v.precio_antes ? Number(v.precio_antes) : null,
+                                stock: Number(v.stock || 0),
+                                activo: v.activo,
+                            }))
+                        )
+                    if (insVarErr) throw insVarErr
+                }
+            }
 
             onSuccess()
         } catch (error: any) {
@@ -257,9 +438,206 @@ export function ProductForm({ productToEdit, onSuccess, onCancel }: ProductFormP
                 />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+                <Label htmlFor="descripcion">Descripción (general)</Label>
+                <Textarea
+                    id="descripcion"
+                    placeholder="Descripción completa del producto..."
+                    value={descripcion}
+                    onChange={(e) => setDescripcion(e.target.value)}
+                />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="price">Precio ($)</Label>
+                    <Label htmlFor="materiales">Materiales</Label>
+                    <Textarea id="materiales" value={materiales} onChange={(e) => setMateriales(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="tamano">Tamaño / Medidas</Label>
+                    <Textarea id="tamano" value={tamano} onChange={(e) => setTamano(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="color">Color</Label>
+                    <Textarea id="color" value={color} onChange={(e) => setColor(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="cuidados">Cuidados</Label>
+                    <Textarea id="cuidados" value={cuidados} onChange={(e) => setCuidados(e.target.value)} />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="uso">Uso recomendado</Label>
+                    <Textarea id="uso" value={uso} onChange={(e) => setUso(e.target.value)} />
+                </div>
+            </div>
+
+            <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                    <Label>Ficha técnica (especificaciones)</Label>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEspecificaciones((prev) => ([...prev, { clave: '', valor: '', orden: prev.length }]))}
+                    >
+                        Agregar
+                    </Button>
+                </div>
+
+                {especificaciones.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">Sin especificaciones</div>
+                ) : (
+                    <div className="space-y-2">
+                        {especificaciones
+                            .slice()
+                            .sort((a, b) => Number(a.orden || 0) - Number(b.orden || 0))
+                            .map((s, idx) => (
+                                <div key={s.id ?? `new-${idx}`} className="grid grid-cols-1 sm:grid-cols-12 gap-2 rounded-lg border bg-popover p-3">
+                                    <div className="sm:col-span-4">
+                                        <Label className="text-xs">Clave</Label>
+                                        <Input
+                                            value={s.clave}
+                                            onChange={(e) => {
+                                                const val = e.target.value
+                                                setEspecificaciones((prev) => prev.map((p) => (p === s ? { ...p, clave: val } : p)))
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="sm:col-span-6">
+                                        <Label className="text-xs">Valor</Label>
+                                        <Input
+                                            value={s.valor}
+                                            onChange={(e) => {
+                                                const val = e.target.value
+                                                setEspecificaciones((prev) => prev.map((p) => (p === s ? { ...p, valor: val } : p)))
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="sm:col-span-2 flex items-end gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-9 w-9"
+                                            onClick={() => setEspecificaciones((prev) => prev.map((p) => (p === s ? { ...p, orden: Math.max(0, Number(p.orden || 0) - 1) } : p)))}
+                                        >
+                                            <ArrowUp className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-9 w-9"
+                                            onClick={() => setEspecificaciones((prev) => prev.map((p) => (p === s ? { ...p, orden: Number(p.orden || 0) + 1 } : p)))}
+                                        >
+                                            <ArrowDown className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-9 w-9"
+                                            onClick={() => setEspecificaciones((prev) => prev.filter((p) => p !== s))}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                    </div>
+                )}
+            </div>
+
+            <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                    <Label>Variantes (talla / color / modelo)</Label>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setVariantes((prev) => ([...prev, { etiqueta: '', precio: '', precio_antes: '', stock: '0', activo: true }]))}
+                    >
+                        Agregar
+                    </Button>
+                </div>
+
+                {variantes.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">Sin variantes</div>
+                ) : (
+                    <div className="space-y-2">
+                        {variantes.map((v, idx) => (
+                            <div key={v.id ?? `vnew-${idx}`} className="grid grid-cols-1 sm:grid-cols-12 gap-2 rounded-lg border bg-popover p-3">
+                                <div className="sm:col-span-4">
+                                    <Label className="text-xs">Etiqueta</Label>
+                                    <Input
+                                        value={v.etiqueta}
+                                        onChange={(e) => {
+                                            const val = e.target.value
+                                            setVariantes((prev) => prev.map((p) => (p === v ? { ...p, etiqueta: val } : p)))
+                                        }}
+                                    />
+                                </div>
+                                <div className="sm:col-span-2">
+                                    <Label className="text-xs">Precio (opcional)</Label>
+                                    <Input
+                                        inputMode="decimal"
+                                        value={v.precio}
+                                        onChange={(e) => {
+                                            const val = e.target.value
+                                            setVariantes((prev) => prev.map((p) => (p === v ? { ...p, precio: val } : p)))
+                                        }}
+                                    />
+                                </div>
+                                <div className="sm:col-span-2">
+                                    <Label className="text-xs">Precio antes (opcional)</Label>
+                                    <Input
+                                        inputMode="decimal"
+                                        value={v.precio_antes}
+                                        onChange={(e) => {
+                                            const val = e.target.value
+                                            setVariantes((prev) => prev.map((p) => (p === v ? { ...p, precio_antes: val } : p)))
+                                        }}
+                                    />
+                                </div>
+                                <div className="sm:col-span-2">
+                                    <Label className="text-xs">Stock</Label>
+                                    <Input
+                                        inputMode="numeric"
+                                        value={v.stock}
+                                        onChange={(e) => {
+                                            const val = e.target.value
+                                            setVariantes((prev) => prev.map((p) => (p === v ? { ...p, stock: val } : p)))
+                                        }}
+                                    />
+                                </div>
+                                <div className="sm:col-span-2 flex items-end gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setVariantes((prev) => prev.map((p) => (p === v ? { ...p, activo: !p.activo } : p)))}
+                                    >
+                                        {v.activo ? 'Activa' : 'Inactiva'}
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-9 w-9"
+                                        onClick={() => setVariantes((prev) => prev.filter((p) => p !== v))}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="price">Precio actual (S/)</Label>
                     <Input
                         id="price"
                         type="number"
@@ -268,6 +646,17 @@ export function ProductForm({ productToEdit, onSuccess, onCancel }: ProductFormP
                         placeholder="0.00"
                         value={price}
                         onChange={(e) => setPrice(e.target.value)}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="priceBefore">Precio antes (S/) (opcional)</Label>
+                    <Input
+                        id="priceBefore"
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={priceBefore}
+                        onChange={(e) => setPriceBefore(e.target.value)}
                     />
                 </div>
                 <div className="space-y-2">

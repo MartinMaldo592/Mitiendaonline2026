@@ -22,7 +22,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, slugify } from "@/lib/utils"
 import { Database } from "@/types/database.types"
 import { Filter, Minus, Plus, Search, ShoppingCart, X } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -232,8 +232,10 @@ function ProductosPageContent() {
     }, [categorias, draftCategory, draftMinPrice, draftMaxPrice, draftOnlyInStock])
 
     const getItemQuantity = (productId: number) => {
-        const item = items.find(i => i.id === productId)
-        return item?.quantity || 0
+        const qty = items
+            .filter((i: any) => i.id === productId)
+            .reduce((sum: number, it: any) => sum + Number(it.quantity || 0), 0)
+        return qty
     }
 
     return (
@@ -469,7 +471,7 @@ function ProductosPageContent() {
                                 <div key={producto.id} className="bg-card rounded-xl shadow-sm border border-border overflow-hidden group hover:shadow-lg transition-all">
                                     {/* Image */}
                                     <div className="aspect-square bg-popover relative overflow-hidden">
-                                        <Link href={`/productos/${producto.id}`} className="absolute inset-0">
+                                        <Link href={`/productos/${slugify(producto.nombre)}-${producto.id}`} className="absolute inset-0">
                                             {((Array.isArray((producto as any).imagenes) && ((producto as any).imagenes as string[]).filter(Boolean).length > 0) || producto.imagen_url) ? (
                                                 <ProductImageCarousel
                                                     images={
@@ -499,7 +501,7 @@ function ProductosPageContent() {
 
                                     {/* Info */}
                                     <div className="p-4">
-                                        <Link href={`/productos/${producto.id}`} className="hover:underline">
+                                        <Link href={`/productos/${slugify(producto.nombre)}-${producto.id}`} className="hover:underline">
                                             <h3 className="font-semibold text-foreground mb-1 line-clamp-2">{producto.nombre}</h3>
                                         </Link>
                                         <p className="text-xl font-bold text-primary mb-3">{formatCurrency(producto.precio)}</p>
@@ -519,7 +521,7 @@ function ProductosPageContent() {
                                                         variant="ghost"
                                                         size="icon"
                                                         className="h-8 w-8"
-                                                        onClick={() => updateQuantity(producto.id, quantity - 1)}
+                                                        onClick={() => updateQuantity(producto.id, quantity - 1, null)}
                                                     >
                                                         <Minus className="h-4 w-4" />
                                                     </Button>
@@ -528,7 +530,7 @@ function ProductosPageContent() {
                                                         variant="ghost"
                                                         size="icon"
                                                         className="h-8 w-8"
-                                                        onClick={() => updateQuantity(producto.id, quantity + 1)}
+                                                        onClick={() => updateQuantity(producto.id, quantity + 1, null)}
                                                     >
                                                         <Plus className="h-4 w-4" />
                                                     </Button>

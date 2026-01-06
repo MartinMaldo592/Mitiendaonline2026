@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { supabase } from "@/lib/supabaseClient"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useRoleGuard } from "@/lib/use-role-guard"
+import { AccessDenied } from "@/components/admin/access-denied"
 import {
     Table,
     TableBody,
@@ -14,58 +17,22 @@ import {
     TableRow,
 } from "@/components/ui/table"
 
-import {
-    Sheet,
-    SheetContent,
-    SheetHeader,
-    SheetTitle,
-    SheetTrigger,
-} from "@/components/ui/sheet"
-import { ProductForm } from "@/components/admin/product-form"
-
 import { formatCurrency } from "@/lib/utils"
 
-import { Plus, Search, Edit, Trash2, Image as ImageIcon, ShieldAlert } from "lucide-react"
+import { Plus, Search, Edit, Trash2, Image as ImageIcon } from "lucide-react"
 
 export default function ProductosPage() {
     const router = useRouter()
     const [productos, setProductos] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
-    const [isSheetOpen, setIsSheetOpen] = useState(false)
-    const [editingProduct, setEditingProduct] = useState<any>(null)
-    const [userRole, setUserRole] = useState<string | null>(null)
-    const [accessDenied, setAccessDenied] = useState(false)
+
+    const guard = useRoleGuard({ allowedRoles: ['admin'] })
 
     useEffect(() => {
-        checkAccess()
-    }, [])
-
-    async function checkAccess() {
-        const { data: { session } } = await supabase.auth.getSession()
-
-        if (!session) {
-            router.push('/auth/login')
-            return
-        }
-
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', session.user.id)
-            .single()
-
-        const role = profile?.role || 'worker'
-        setUserRole(role)
-
-        // Workers don't have access to inventory
-        if (role === 'worker') {
-            setAccessDenied(true)
-            setLoading(false)
-            return
-        }
-
+        if (guard.loading || guard.accessDenied) return
         fetchProductos()
-    }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [guard.loading, guard.accessDenied])
 
     async function fetchProductos() {
         setLoading(true)
@@ -75,22 +42,6 @@ export default function ProductosPage() {
             .order('id', { ascending: true })
         if (data) setProductos(data)
         setLoading(false)
-    }
-
-    const handleProductSaved = () => {
-        setIsSheetOpen(false)
-        setEditingProduct(null)
-        fetchProductos()
-    }
-
-    const handleEdit = (producto: any) => {
-        setEditingProduct(producto)
-        setIsSheetOpen(true)
-    }
-
-    const handleNew = () => {
-        setEditingProduct(null)
-        setIsSheetOpen(true)
     }
 
     const handleDelete = async (id: number) => {
@@ -105,22 +56,10 @@ export default function ProductosPage() {
         }
     }
 
-    // Access Denied View for Workers
-    if (accessDenied) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-                <div className="h-20 w-20 bg-red-100 rounded-full flex items-center justify-center mb-6">
-                    <ShieldAlert className="h-10 w-10 text-red-500" />
-                </div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">Acceso Restringido</h1>
-                <p className="text-gray-500 max-w-md mb-6">
-                    No tienes permisos para acceder al inventario. Esta sección está disponible solo para administradores.
-                </p>
-                <Button onClick={() => router.push('/admin/dashboard')}>
-                    Volver al Dashboard
-                </Button>
-            </div>
-        )
+    if (guard.accessDenied) return <AccessDenied />
+
+    if (guard.loading) {
+        return <div className="p-6 text-muted-foreground">Cargando...</div>
     }
 
     return (
@@ -131,26 +70,11 @@ export default function ProductosPage() {
                     <p className="text-gray-500">Administra el inventario de tu tienda.</p>
                 </div>
 
-                <Sheet open={isSheetOpen} onOpenChange={(open) => {
-                    setIsSheetOpen(open)
-                    if (!open) setEditingProduct(null)
-                }}>
-                    <SheetTrigger asChild>
-                        <Button className="bg-black text-white gap-2 hover:bg-gray-800" onClick={handleNew}>
-                            <Plus className="h-4 w-4" /> Nuevo Producto
-                        </Button>
-                    </SheetTrigger>
-                    <SheetContent className="overflow-y-auto sm:max-w-lg">
-                        <SheetHeader>
-                            <SheetTitle>{editingProduct ? 'Editar Producto' : 'Agregar Nuevo Producto'}</SheetTitle>
-                        </SheetHeader>
-                        <ProductForm
-                            productToEdit={editingProduct}
-                            onSuccess={handleProductSaved}
-                            onCancel={() => setIsSheetOpen(false)}
-                        />
-                    </SheetContent>
-                </Sheet>
+                <Button asChild className="bg-black text-white gap-2 hover:bg-gray-800">
+                    <Link href="/admin/productos/nuevo">
+                        <Plus className="h-4 w-4" /> Nuevo Producto
+                    </Link>
+                </Button>
             </div>
 
             <div className="flex gap-2 bg-white p-4 rounded-xl shadow-sm border">
@@ -193,15 +117,24 @@ export default function ProductosPage() {
                                         </div>
                                     </TableCell>
                                     <TableCell className="font-medium">{producto.nombre}</TableCell>
-                                    <TableCell>{formatCurrency(producto.precio)}</TableCell>
+                                    <TableCell>
+                                        <div className="flex items-baseline gap-2">
+                                            <span className="font-semibold">{formatCurrency(producto.precio)}</span>
+                                            {producto.precio_antes != null && Number(producto.precio_antes) > Number(producto.precio) && (
+                                                <span className="text-xs text-gray-500 line-through">{formatCurrency(producto.precio_antes)}</span>
+                                            )}
+                                        </div>
+                                    </TableCell>
                                     <TableCell>
                                         <span className={`px-2 py-1 rounded-full text-xs font-bold ${producto.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                             {producto.stock} un.
                                         </span>
                                     </TableCell>
                                     <TableCell className="text-right space-x-2">
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-gray-100" onClick={() => handleEdit(producto)}>
-                                            <Edit className="h-4 w-4 text-gray-600" />
+                                        <Button asChild variant="ghost" size="icon" className="h-8 w-8 hover:bg-gray-100">
+                                            <Link href={`/admin/productos/${producto.id}/editar`} aria-label="Editar">
+                                                <Edit className="h-4 w-4 text-gray-600" />
+                                            </Link>
                                         </Button>
                                         <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-50" onClick={() => handleDelete(producto.id)}>
                                             <Trash2 className="h-4 w-4 text-red-500" />

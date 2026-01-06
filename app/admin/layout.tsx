@@ -17,12 +17,40 @@ export default function AdminLayout({
     const [userRole, setUserRole] = useState<string | null>(null)
     const isTicketRoute = pathname?.includes('/admin/pedidos/') && pathname?.endsWith('/ticket')
 
+    function isInvalidRefreshTokenError(err: unknown) {
+        const msg = String((err as any)?.message || '')
+        return (
+            msg.toLowerCase().includes('invalid refresh token') ||
+            msg.toLowerCase().includes('refresh token not found')
+        )
+    }
+
     useEffect(() => {
         checkAuth()
     }, [pathname])
 
     async function checkAuth() {
-        const { data: { session } } = await supabase.auth.getSession()
+        let session: any = null
+        try {
+            const res = await supabase.auth.getSession()
+            session = res?.data?.session ?? null
+            const err = (res as any)?.error
+            if (err) throw err
+        } catch (err) {
+            console.error('Error verificando sesión:', err)
+            if (isInvalidRefreshTokenError(err)) {
+                try {
+                    await supabase.auth.signOut()
+                } catch (e) {
+                }
+                alert('Tu sesión expiró o se dañó. Inicia sesión nuevamente.')
+                router.replace('/auth/login')
+                return
+            }
+            alert('No se pudo verificar tu sesión. Intenta nuevamente.')
+            router.replace('/auth/login')
+            return
+        }
 
         if (!session) {
             router.push("/auth/login")

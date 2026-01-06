@@ -1,0 +1,625 @@
+"use client"
+
+import { useEffect, useMemo, useRef, useState } from "react"
+import Link from "next/link"
+import { useParams, useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabaseClient"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { formatCurrency } from "@/lib/utils"
+import { ProductImageCarousel } from "@/components/product-image-carousel"
+import { useCartStore } from "@/store/cart"
+import {
+    ArrowLeft,
+    ChevronLeft,
+    ChevronRight,
+    Copy,
+    CreditCard,
+    Minus,
+    Plus,
+    RefreshCw,
+    Send,
+    ShieldCheck,
+    Share2,
+    ShoppingCart,
+    Truck,
+} from "lucide-react"
+import { ProductCard } from "@/components/product-card"
+
+function parseProductId(raw: string) {
+    const direct = Number(raw)
+    if (Number.isFinite(direct) && direct > 0) return direct
+    const match = String(raw).match(/(\d+)(?:\D*)$/)
+    if (match && match[1]) return Number(match[1])
+    return 0
+}
+
+export default function ProductoDetalleClient() {
+    const params = useParams()
+    const router = useRouter()
+    const rawId = params.id as string
+
+    const numericId = useMemo(() => parseProductId(rawId), [rawId])
+
+    const [loading, setLoading] = useState(true)
+    const [producto, setProducto] = useState<any>(null)
+    const [variantes, setVariantes] = useState<any[]>([])
+    const [especificaciones, setEspecificaciones] = useState<any[]>([])
+    const [selectedVarianteId, setSelectedVarianteId] = useState<number | null>(null)
+    const [recoLoading, setRecoLoading] = useState(false)
+    const [recomendados, setRecomendados] = useState<any[]>([])
+    const recoRef = useRef<HTMLDivElement | null>(null)
+
+    const [shareOpen, setShareOpen] = useState(false)
+    const [copied, setCopied] = useState(false)
+
+    const { addItem, items, updateQuantity } = useCartStore()
+
+    const quantity = useMemo(() => {
+        const vid = selectedVarianteId ?? null
+        const found = items.find((it: any) => it.id === numericId && ((it as any).producto_variante_id ?? null) === vid)
+        return found?.quantity || 0
+    }, [items, numericId, selectedVarianteId])
+
+    useEffect(() => {
+        if (!rawId) return
+        fetchProducto()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [rawId])
+
+    useEffect(() => {
+        if (!producto?.id) return
+        fetchRecomendados(Number(producto.id))
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [producto?.id])
+
+    async function fetchProducto() {
+        setLoading(true)
+
+        if (!numericId) {
+            setProducto(null)
+            setLoading(false)
+            return
+        }
+
+        const [prodRes, variantsRes, specsRes] = await Promise.all([
+            supabase
+                .from("productos")
+                .select(`*, categorias (id, nombre, slug)`)
+                .eq("id", numericId)
+                .single(),
+            supabase
+                .from("producto_variantes")
+                .select("*")
+                .eq("producto_id", numericId)
+                .eq("activo", true)
+                .order("id", { ascending: true }),
+            supabase
+                .from("producto_especificaciones")
+                .select("*")
+                .eq("producto_id", numericId)
+                .order("orden", { ascending: true })
+                .order("id", { ascending: true }),
+        ])
+
+        const { data, error } = prodRes
+
+        if (error) {
+            console.error("Error fetching producto:", error)
+            setProducto(null)
+        } else {
+            setProducto(data)
+        }
+
+        const vData = Array.isArray(variantsRes.data) ? variantsRes.data : []
+        setVariantes(vData)
+        if (vData.length > 0) {
+            setSelectedVarianteId((prev) => {
+                if (prev != null && vData.some((v: any) => Number(v.id) === Number(prev))) return prev
+                return Number(vData[0].id)
+            })
+        } else {
+            setSelectedVarianteId(null)
+        }
+
+        const sData = Array.isArray(specsRes.data) ? specsRes.data : []
+        setEspecificaciones(sData)
+
+        setLoading(false)
+    }
+
+    async function fetchRecomendados(excludeId: number) {
+        setRecoLoading(true)
+        try {
+            const { data: topData, error: topError } = await supabase.rpc("get_top_products", {
+                limit_count: 8,
+                exclude_id: excludeId,
+            })
+
+            if (!topError && Array.isArray(topData)) {
+                setRecomendados(topData)
+                return
+            }
+
+            const { data: recentData, error: recentError } = await supabase
+                .from("productos")
+                .select("*")
+                .neq("id", excludeId)
+                .gt("stock", 0)
+                .order("created_at", { ascending: false })
+                .limit(8)
+
+            if (!recentError && Array.isArray(recentData)) {
+                setRecomendados(recentData)
+                return
+            }
+
+            setRecomendados([])
+        } catch (err) {
+            setRecomendados([])
+        } finally {
+            setRecoLoading(false)
+        }
+    }
+
+    const images = useMemo(() => {
+        const arr = Array.isArray(producto?.imagenes) ? (producto.imagenes as string[]) : []
+        const clean = (arr || []).filter(Boolean).slice(0, 10)
+        if (clean.length > 0) return clean
+        return producto?.imagen_url ? [producto.imagen_url] : []
+    }, [producto])
+
+    if (loading) {
+        return <div className="p-10 text-center text-muted-foreground">Cargando producto...</div>
+    }
+
+    if (!producto) {
+        return (
+            <div className="space-y-4">
+                <Button variant="ghost" className="gap-2" onClick={() => router.push("/productos")}
+                >
+                    <ArrowLeft className="h-4 w-4" /> Volver
+                </Button>
+                <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+                    <p className="text-lg font-semibold">Producto no encontrado</p>
+                    <p className="text-sm text-muted-foreground mt-1">Puede que haya sido eliminado o no exista.</p>
+                </div>
+            </div>
+        )
+    }
+
+    const selectedVariante = selectedVarianteId
+        ? variantes.find((v: any) => Number(v.id) === Number(selectedVarianteId)) || null
+        : null
+
+    const effectiveStock = selectedVariante ? Number((selectedVariante as any).stock ?? 0) : Number(producto.stock || 0)
+    const inStock = effectiveStock > 0
+    const isLowStock = inStock && effectiveStock <= 5
+
+    const currentPrice = Number(selectedVariante?.precio ?? producto?.precio ?? 0)
+    const beforePrice = Number(selectedVariante?.precio_antes ?? producto?.precio_antes ?? 0)
+    const hasSale =
+        Number.isFinite(beforePrice) &&
+        beforePrice > 0 &&
+        Number.isFinite(currentPrice) &&
+        currentPrice > 0 &&
+        beforePrice > currentPrice
+    const discountPercent = hasSale ? Math.round((1 - currentPrice / beforePrice) * 100) : 0
+
+    const scrollRecoBy = (delta: number) => {
+        const el = recoRef.current
+        if (!el) return
+        el.scrollBy({ left: delta, behavior: "smooth" })
+    }
+
+    const categoryLabel = producto?.categorias?.nombre ? String(producto.categorias.nombre) : "—"
+    const categoryId = producto?.categoria_id ? String(producto.categoria_id) : null
+
+    const shareUrl = typeof window !== "undefined" ? window.location.href : ""
+
+    const handleCopyLink = async () => {
+        try {
+            await navigator.clipboard.writeText(shareUrl)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1200)
+        } catch (err) {
+        }
+    }
+
+    const handleShareWhatsApp = () => {
+        const text = `${String(producto?.nombre || "Producto")}: ${shareUrl}`
+        const wa = `https://api.whatsapp.com/send/?text=${encodeURIComponent(text)}`
+        window.open(wa, "_blank")
+    }
+
+    const handleShareNative = async () => {
+        try {
+            const nav: any = navigator
+            if (nav?.share) {
+                await nav.share({
+                    title: String(producto?.nombre || "Producto"),
+                    text: String(producto?.nombre || "Producto"),
+                    url: shareUrl,
+                })
+                return
+            }
+        } catch (err) {
+        }
+        setShareOpen((v) => !v)
+    }
+
+    return (
+        <div className="space-y-6 max-w-5xl mx-auto pb-24 md:pb-0">
+            <div className="flex items-center justify-between gap-3">
+                <Button variant="ghost" className="gap-2" asChild>
+                    <Link href="/productos">
+                        <ArrowLeft className="h-4 w-4" /> Volver a productos
+                    </Link>
+                </Button>
+
+                <div className="relative">
+                    <Button type="button" variant="outline" className="gap-2" onClick={handleShareNative}>
+                        <Share2 className="h-4 w-4" /> Compartir
+                    </Button>
+
+                    {shareOpen && (
+                        <div className="absolute right-0 mt-2 w-56 rounded-xl border bg-card shadow-lg p-2 z-20">
+                            <button
+                                type="button"
+                                className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-popover text-foreground"
+                                onClick={() => {
+                                    setShareOpen(false)
+                                    handleShareWhatsApp()
+                                }}
+                            >
+                                <Send className="h-4 w-4" /> WhatsApp
+                            </button>
+                            <button
+                                type="button"
+                                className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-popover text-foreground"
+                                onClick={() => {
+                                    handleCopyLink()
+                                }}
+                            >
+                                <Copy className="h-4 w-4" /> {copied ? "Link copiado" : "Copiar link"}
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <div className="text-sm text-muted-foreground">
+                <Link href="/" className="hover:underline">Inicio</Link>
+                <span className="mx-2">/</span>
+                <Link href="/productos" className="hover:underline">Productos</Link>
+                <span className="mx-2">/</span>
+                {categoryId ? (
+                    <Link href={`/productos?cat=${encodeURIComponent(categoryId)}`} className="hover:underline">
+                        {categoryLabel}
+                    </Link>
+                ) : (
+                    <span>{categoryLabel}</span>
+                )}
+                <span className="mx-2">/</span>
+                <span className="text-foreground font-semibold">{String(producto.nombre)}</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card className="overflow-hidden shadow-sm border">
+                    <div className="aspect-square bg-popover relative group">
+                        {images.length > 0 ? (
+                            <ProductImageCarousel images={images} alt={producto.nombre} />
+                        ) : (
+                            <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">Sin imagen</div>
+                        )}
+                        {!inStock && (
+                            <div className="absolute inset-0 bg-foreground/60 flex items-center justify-center">
+                                <span className="text-sidebar-primary-foreground font-bold">Agotado</span>
+                            </div>
+                        )}
+                    </div>
+                </Card>
+
+                <div className="space-y-4">
+                    <Card className="shadow-sm border">
+                        <CardContent className="p-6 space-y-3">
+                            <div className="space-y-1">
+                                <h1 className="text-2xl md:text-3xl font-bold text-foreground">{producto.nombre}</h1>
+                                <div className="text-sm text-muted-foreground">
+                                    {producto.categorias?.nombre ? (
+                                        <span>Categoría: {producto.categorias.nombre}</span>
+                                    ) : (
+                                        <span>Categoría: —</span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {variantes.length > 0 && (
+                                <div className="space-y-2">
+                                    <div className="text-sm font-semibold text-foreground">Variantes</div>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                        {variantes.map((v: any) => {
+                                            const vId = Number(v.id)
+                                            const isActive = (selectedVarianteId ?? null) === vId
+                                            const vStock = Number(v.stock ?? 0)
+                                            return (
+                                                <button
+                                                    key={vId}
+                                                    type="button"
+                                                    onClick={() => setSelectedVarianteId(vId)}
+                                                    className={
+                                                        "rounded-lg border px-3 py-2 text-left transition-colors " +
+                                                        (isActive ? "border-primary bg-primary/10" : "border-border hover:bg-popover")
+                                                    }
+                                                >
+                                                    <div className="text-sm font-semibold text-foreground line-clamp-1">
+                                                        {String(v.etiqueta || "Variante")}
+                                                    </div>
+                                                    <div className="text-xs text-muted-foreground">
+                                                        {vStock > 0 ? `${vStock} disponibles` : "Sin stock"}
+                                                    </div>
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <div className="text-sm text-muted-foreground">Precio</div>
+                                    <div className="flex items-end gap-3 flex-wrap">
+                                        <div className="text-3xl font-extrabold text-primary tracking-tight">
+                                            {formatCurrency(currentPrice)}
+                                        </div>
+                                        {hasSale && (
+                                            <div className="flex items-center gap-2">
+                                                <div className="text-base text-muted-foreground line-through">
+                                                    {formatCurrency(beforePrice)}
+                                                </div>
+                                                <span className="inline-flex items-center rounded-full bg-gradient-to-r from-rose-600 to-orange-500 px-2.5 py-1 text-xs font-extrabold text-white shadow-md ring-1 ring-white/30">
+                                                    -{discountPercent}%
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-sm text-muted-foreground">Stock</div>
+                                    <div className={`text-sm font-semibold ${inStock ? "text-green-700" : "text-red-700"}`}>
+                                        {inStock ? `${effectiveStock} disponibles` : "Sin stock"}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {isLowStock && (
+                                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                                    <span className="font-semibold">Quedan {effectiveStock} unidades</span>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-lg border bg-card p-3">
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <Truck className="h-4 w-4 text-foreground" />
+                                    <span>Entrega en 24h solo Lima Metropolitana</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <CreditCard className="h-4 w-4 text-foreground" />
+                                    <span>Pago contraentrega / transferencia</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <RefreshCw className="h-4 w-4 text-foreground" />
+                                    <span>Cambios y devoluciones</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <ShieldCheck className="h-4 w-4 text-foreground" />
+                                    <span>Compra segura</span>
+                                </div>
+                            </div>
+
+                            {inStock ? (
+                                quantity === 0 ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <Button className="w-full gap-2 h-11" onClick={() => addItem(producto, selectedVariante)}>
+                                            <ShoppingCart className="h-4 w-4" /> Agregar al carrito
+                                        </Button>
+                                        <Button
+                                            className="w-full gap-2 h-11"
+                                            variant="secondary"
+                                            onClick={() => {
+                                                addItem(producto, selectedVariante)
+                                                router.push("/checkout")
+                                            }}
+                                        >
+                                            Comprar ahora
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="w-full flex items-center justify-between bg-popover rounded-lg p-2">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-10 w-10"
+                                            onClick={() => updateQuantity(Number(producto.id), quantity - 1, selectedVarianteId ?? null)}
+                                        >
+                                            <Minus className="h-4 w-4" />
+                                        </Button>
+                                        <div className="text-center">
+                                            <div className="text-xs text-muted-foreground">Cantidad</div>
+                                            <div className="text-lg font-bold">{quantity}</div>
+                                        </div>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-10 w-10"
+                                            onClick={() => updateQuantity(Number(producto.id), quantity + 1, selectedVarianteId ?? null)}
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                )
+                            ) : (
+                                <Button disabled className="w-full h-11">
+                                    Sin stock
+                                </Button>
+                            )}
+
+                            {inStock && quantity > 0 && (
+                                <Button className="w-full h-11" variant="secondary" onClick={() => router.push("/checkout")}>
+                                    Comprar ahora
+                                </Button>
+                            )}
+
+                            <div className="pt-2 text-xs text-muted-foreground">
+                                ID: #{String(producto.id).padStart(6, "0")} • {new Date(producto.created_at).toLocaleString()}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {(producto?.descripcion || producto?.materiales || producto?.tamano || producto?.color || producto?.cuidados || producto?.uso) && (
+                        <Card className="shadow-sm border">
+                            <CardContent className="p-6 space-y-4">
+                                <h2 className="text-lg font-bold text-foreground">Descripción</h2>
+
+                                {producto?.descripcion && (
+                                    <div className="text-sm text-muted-foreground whitespace-pre-line">{producto.descripcion}</div>
+                                )}
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {producto?.materiales && (
+                                        <div>
+                                            <div className="text-xs font-semibold text-foreground">Materiales</div>
+                                            <div className="text-sm text-muted-foreground whitespace-pre-line">{producto.materiales}</div>
+                                        </div>
+                                    )}
+                                    {producto?.tamano && (
+                                        <div>
+                                            <div className="text-xs font-semibold text-foreground">Tamaño / Medidas</div>
+                                            <div className="text-sm text-muted-foreground whitespace-pre-line">{producto.tamano}</div>
+                                        </div>
+                                    )}
+                                    {producto?.color && (
+                                        <div>
+                                            <div className="text-xs font-semibold text-foreground">Color</div>
+                                            <div className="text-sm text-muted-foreground whitespace-pre-line">{producto.color}</div>
+                                        </div>
+                                    )}
+                                    {producto?.cuidados && (
+                                        <div>
+                                            <div className="text-xs font-semibold text-foreground">Cuidados</div>
+                                            <div className="text-sm text-muted-foreground whitespace-pre-line">{producto.cuidados}</div>
+                                        </div>
+                                    )}
+                                    {producto?.uso && (
+                                        <div className="sm:col-span-2">
+                                            <div className="text-xs font-semibold text-foreground">Uso recomendado</div>
+                                            <div className="text-sm text-muted-foreground whitespace-pre-line">{producto.uso}</div>
+                                        </div>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {especificaciones.length > 0 && (
+                        <Card className="shadow-sm border">
+                            <CardContent className="p-6 space-y-4">
+                                <h2 className="text-lg font-bold text-foreground">Ficha técnica</h2>
+                                <div className="divide-y">
+                                    {especificaciones.map((s: any) => (
+                                        <div key={s.id} className="py-2 flex items-start justify-between gap-4">
+                                            <div className="text-sm font-semibold text-foreground">{String(s.clave || "")}</div>
+                                            <div className="text-sm text-muted-foreground text-right whitespace-pre-line">{String(s.valor || "")}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
+            </div>
+
+            <div className="pt-2">
+                <div className="flex items-end justify-between gap-3">
+                    <div>
+                        <h2 className="text-xl md:text-2xl font-bold text-foreground">Más comprados</h2>
+                        <p className="text-sm text-muted-foreground">Productos populares para completar tu compra</p>
+                    </div>
+                    <Link href="/productos" className="text-sm font-semibold text-primary hover:underline">
+                        Ver más
+                    </Link>
+                </div>
+
+                {recoLoading ? (
+                    <div className="relative mt-4">
+                        <div className="flex gap-4 overflow-x-auto pb-2">
+                            {Array.from({ length: 8 }).map((_, idx) => (
+                                <div key={idx} className="min-w-[220px] max-w-[220px] h-[280px] rounded-xl border bg-card animate-pulse" />
+                            ))}
+                        </div>
+                    </div>
+                ) : recomendados.length === 0 ? (
+                    <div className="mt-4 rounded-xl border bg-card p-6 text-sm text-muted-foreground">
+                        No hay recomendaciones disponibles en este momento.
+                    </div>
+                ) : (
+                    <div className="relative mt-4">
+                        <div className="absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-background to-transparent pointer-events-none" />
+                        <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-background to-transparent pointer-events-none" />
+
+                        <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10 hidden md:block">
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                size="icon"
+                                className="h-9 w-9 rounded-full shadow-sm"
+                                onClick={() => scrollRecoBy(-520)}
+                                aria-label="Ver anteriores"
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10 hidden md:block">
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                size="icon"
+                                className="h-9 w-9 rounded-full shadow-sm"
+                                onClick={() => scrollRecoBy(520)}
+                                aria-label="Ver siguientes"
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+
+                        <div ref={recoRef} className="flex gap-4 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-2">
+                            {recomendados.map((p) => (
+                                <div key={p.id} className="snap-start min-w-[220px] max-w-[220px]">
+                                    <ProductCard product={p} />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t bg-background/95 backdrop-blur">
+                <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+                    <div>
+                        <div className="text-xs text-muted-foreground">Total</div>
+                        <div className="text-lg font-extrabold text-primary leading-none">{formatCurrency(currentPrice)}</div>
+                    </div>
+                    <Button
+                        className="h-11 flex-1 gap-2"
+                        disabled={!inStock}
+                        onClick={() => {
+                            addItem(producto, selectedVariante)
+                        }}
+                    >
+                        <ShoppingCart className="h-4 w-4" /> Agregar
+                    </Button>
+                </div>
+            </div>
+        </div>
+    )
+}

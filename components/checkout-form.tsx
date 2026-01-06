@@ -86,7 +86,7 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
     const validateCoupon = async (rawCode: string, subtotal: number) => {
         const code = rawCode.trim()
         if (!code) {
-            return { descuento: 0, codigo: null as string | null, id: null as number | null, usos: null as number | null }
+            return { descuento: 0, codigo: null as string | null }
         }
 
         const { data, error } = await supabase
@@ -125,12 +125,40 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
 
         descuento = Math.max(0, Math.min(subtotal, Math.round(descuento * 100) / 100))
 
-        return { descuento, codigo: data.codigo as string, id: data.id as number, usos: data.usos as number }
+        return { descuento, codigo: data.codigo as string }
     }
 
     const subtotalAmount = Number(total) || 0
     const discountAmount = Math.max(0, Math.min(subtotalAmount, Number(couponDiscount) || 0))
     const totalToPay = Math.max(0, Math.round((subtotalAmount - discountAmount) * 100) / 100)
+
+    const isCouponRelatedError = (message: string) => {
+        const m = String(message || '').toLowerCase()
+        return (
+            m.includes('cupón') ||
+            m.includes('cupon') ||
+            m.includes('agotado') ||
+            m.includes('expir') ||
+            m.includes('inval') ||
+            m.includes('no aplica') ||
+            m.includes('aún no')
+        )
+    }
+
+    function isInAppBrowser() {
+        const ua = String(navigator?.userAgent || '')
+        const uaLower = ua.toLowerCase()
+
+        if (uaLower.includes('fban') || uaLower.includes('fbav')) return true
+        if (uaLower.includes('instagram')) return true
+        if (uaLower.includes('tiktok')) return true
+        if (uaLower.includes('snapchat')) return true
+        if (uaLower.includes('pinterest')) return true
+        if (uaLower.includes('linkedinapp')) return true
+        if (uaLower.includes('wv') || uaLower.includes('; wv')) return true
+        if (uaLower.includes('webview')) return true
+        return false
+    }
 
     const handleApplyCoupon = async () => {
         setCouponError("")
@@ -165,16 +193,11 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
 
         let appliedCouponCode: string | null = null
         let appliedDiscount = discountAmount
-        let appliedCouponId: number | null = null
-        let appliedCouponUsos: number | null = null
-
         if (couponCode.trim()) {
             try {
                 const res = await validateCoupon(couponCode, subtotalAmount)
                 appliedCouponCode = res.codigo
                 appliedDiscount = res.descuento
-                appliedCouponId = res.id
-                appliedCouponUsos = res.usos
             } catch (err: any) {
                 setCouponError(err?.message || 'Cupón inválido')
                 setIsSubmitting(false)
@@ -211,41 +234,39 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
         // Abrimos WhatsApp DIRECTO por API (sin páginas intermedias) en una pestaña nueva
         // para que la tienda no se cierre.
         // Pre-abrimos la pestaña en blanco durante el click del usuario para minimizar bloqueos.
-        const initialWhatsAppUrl = `https://api.whatsapp.com/send/?phone=${encodeURIComponent(phoneNumberClienteInit)}&text=${encodeURIComponent(messageClientePreview)}&type=phone_number&app_absent=0`
-        const popup = window.open('about:blank', '_blank')
-        if (popup) {
-            try {
+        const inApp = isInAppBrowser()
+        let popup: Window | null = null
+        if (!inApp) {
+            popup = window.open('about:blank', '_blank')
+            if (popup) {
                 try {
                     ;(popup as any).opener = null
                 } catch (err) {
                 }
-                popup.location.href = initialWhatsAppUrl
-            } catch (err) {
-                // Fallback: si no podemos navegar, mostramos botón manual.
-                setWaUrl(initialWhatsAppUrl)
-                setWaPromptOpen(true)
             }
-        } else {
-            // Popup bloqueado: mostramos botón manual.
-            setWaUrl(initialWhatsAppUrl)
-            setWaPromptOpen(true)
         }
 
 
         try {
             // A. Cliente
             let clienteId: number;
-            const { data: existingClients } = await supabase
+            const { data: existingClients, error: existingClientsError } = await supabase
                 .from('clientes')
                 .select('id')
                 .eq('telefono', phone)
                 .limit(1)
 
+            if (existingClientsError) throw new Error(existingClientsError.message)
+
             const direccionCompleta = `${value} ${reference ? `(Ref: ${reference})` : ''} ${locationLink ? `[Link: ${locationLink}]` : ''}`.trim()
 
             if (existingClients && existingClients.length > 0) {
                 clienteId = existingClients[0].id
-                await supabase.from('clientes').update({ nombre: name, dni: normalizedDni, direccion: direccionCompleta }).eq('id', clienteId)
+                const { error: updErr } = await supabase
+                    .from('clientes')
+                    .update({ nombre: name, dni: normalizedDni, direccion: direccionCompleta })
+                    .eq('id', clienteId)
+                if (updErr) throw new Error(updErr.message)
             } else {
                 const { data: newClient, error: clientError } = await supabase
                     .from('clientes')
@@ -274,6 +295,10 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
                 .single()
 
             if (orderWithCouponError) {
+                // Si el cliente ingresó cupón, NO hacemos fallback: debe fallar para no crear pedidos inconsistentes.
+                if (appliedCouponCode || finalDiscount > 0) {
+                    throw new Error(orderWithCouponError.message)
+                }
                 const { data: orderFallback, error: orderFallbackError } = await supabase
                     .from('pedidos')
                     .insert({ cliente_id: clienteId, total: finalTotal, status: 'Pendiente', pago_status: 'Pago Contraentrega' })
@@ -290,6 +315,10 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
             const orderItems = items.map(item => ({
                 pedido_id: newOrder.id,
                 producto_id: item.id,
+                producto_variante_id: (item as any).producto_variante_id ?? null,
+                precio_unitario: Number((item as any).precio ?? 0),
+                producto_nombre: String((item as any).nombre ?? ''),
+                variante_nombre: (item as any).variante_nombre ?? null,
                 cantidad: item.quantity
             }))
 
@@ -313,7 +342,8 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
             messageCliente += `\n--------------------------------\n\n`
             messageCliente += `*DETALLE DEL PEDIDO:*\n`
             items.forEach(item => {
-                messageCliente += `• ${item.quantity} x ${item.nombre}\n   Sub: ${formatCurrency(item.precio * item.quantity)}\n`
+                const vName = (item as any).variante_nombre ? ` (${String((item as any).variante_nombre)})` : ''
+                messageCliente += `• ${item.quantity} x ${item.nombre}${vName}\n   Sub: ${formatCurrency(item.precio * item.quantity)}\n`
             })
             messageCliente += `\n--------------------------------\n`
             if (finalDiscount > 0 && appliedCouponCode) {
@@ -357,33 +387,47 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
             // G. Preparar enlace de WhatsApp final (incluye id de pedido).
             const urlCliente = `https://api.whatsapp.com/send/?phone=${encodeURIComponent(phoneNumberCliente)}&text=${encodeURIComponent(messageCliente)}&type=phone_number&app_absent=0`
 
+            try {
+                localStorage.setItem(
+                    'blama_last_order_success',
+                    JSON.stringify({ orderId: orderIdFormatted, ts: Date.now() })
+                )
+            } catch (err) {
+            }
+
             onComplete()
 
             try {
-                if (popup && !popup.closed) {
+                if (inApp) {
+                    window.location.href = urlCliente
+                } else if (popup && !popup.closed) {
                     popup.location.href = urlCliente
                 } else {
-                    setWaUrl(urlCliente)
-                    setWaPromptOpen(true)
+                    const opened = window.open(urlCliente, '_blank')
+                    if (!opened) {
+                        setWaUrl(urlCliente)
+                        setWaPromptOpen(true)
+                    }
                 }
             } catch (err) {
                 setWaUrl(urlCliente)
                 setWaPromptOpen(true)
             }
 
-            if (appliedCouponId != null && finalDiscount > 0 && appliedCouponUsos != null) {
-                try {
-                    await supabase
-                        .from('cupones')
-                        .update({ usos: Number(appliedCouponUsos) + 1 })
-                        .eq('id', appliedCouponId)
-                } catch (err) {
-                }
-            }
-
         } catch (error: any) {
             console.error("Error al procesar:", error)
-            alert("Error al procesar el pedido: " + error.message)
+
+            const msg = String(error?.message || '')
+            if (isCouponRelatedError(msg)) {
+                setCouponDiscount(0)
+                setCouponApplied(false)
+                setCouponError(
+                    `El cupón ya no está disponible o no es válido en este momento. ` +
+                    `Vuelve a intentar aplicar el cupón o usa otro.\n\nDetalle: ${msg}`
+                )
+            } else {
+                alert("Error al procesar el pedido: " + msg)
+            }
         } finally {
             setIsSubmitting(false)
         }

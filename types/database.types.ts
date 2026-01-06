@@ -35,6 +35,13 @@ export interface Database {
                     id: number
                     nombre: string
                     precio: number
+                    precio_antes: number | null
+                    descripcion?: string | null
+                    materiales?: string | null
+                    tamano?: string | null
+                    color?: string | null
+                    cuidados?: string | null
+                    uso?: string | null
                     stock: number
                     imagen_url: string | null
                     imagenes: string[] | null
@@ -45,6 +52,13 @@ export interface Database {
                     id?: number
                     nombre: string
                     precio: number
+                    precio_antes?: number | null
+                    descripcion?: string | null
+                    materiales?: string | null
+                    tamano?: string | null
+                    color?: string | null
+                    cuidados?: string | null
+                    uso?: string | null
                     stock?: number
                     imagen_url?: string | null
                     imagenes?: string[] | null
@@ -55,10 +69,86 @@ export interface Database {
                     id?: number
                     nombre?: string
                     precio?: number
+                    precio_antes?: number | null
+                    descripcion?: string | null
+                    materiales?: string | null
+                    tamano?: string | null
+                    color?: string | null
+                    cuidados?: string | null
+                    uso?: string | null
                     stock?: number
                     imagen_url?: string | null
                     imagenes?: string[] | null
                     categoria_id?: number | null
+                    created_at?: string
+                }
+            }
+
+            producto_variantes: {
+                Row: {
+                    id: number
+                    producto_id: number
+                    etiqueta: string
+                    talla: string | null
+                    color: string | null
+                    modelo: string | null
+                    precio: number | null
+                    precio_antes: number | null
+                    stock: number
+                    activo: boolean
+                    created_at: string
+                }
+                Insert: {
+                    id?: number
+                    producto_id: number
+                    etiqueta: string
+                    talla?: string | null
+                    color?: string | null
+                    modelo?: string | null
+                    precio?: number | null
+                    precio_antes?: number | null
+                    stock?: number
+                    activo?: boolean
+                    created_at?: string
+                }
+                Update: {
+                    id?: number
+                    producto_id?: number
+                    etiqueta?: string
+                    talla?: string | null
+                    color?: string | null
+                    modelo?: string | null
+                    precio?: number | null
+                    precio_antes?: number | null
+                    stock?: number
+                    activo?: boolean
+                    created_at?: string
+                }
+            }
+
+            producto_especificaciones: {
+                Row: {
+                    id: number
+                    producto_id: number
+                    clave: string
+                    valor: string | null
+                    orden: number
+                    created_at: string
+                }
+                Insert: {
+                    id?: number
+                    producto_id: number
+                    clave: string
+                    valor?: string | null
+                    orden?: number
+                    created_at?: string
+                }
+                Update: {
+                    id?: number
+                    producto_id?: number
+                    clave?: string
+                    valor?: string | null
+                    orden?: number
                     created_at?: string
                 }
             }
@@ -137,18 +227,30 @@ export interface Database {
                     id: number
                     pedido_id: number | null
                     producto_id: number | null
+                    producto_variante_id?: number | null
+                    precio_unitario?: number | null
+                    producto_nombre?: string | null
+                    variante_nombre?: string | null
                     cantidad: number
                 }
                 Insert: {
                     id?: number
                     pedido_id?: number | null
                     producto_id?: number | null
+                    producto_variante_id?: number | null
+                    precio_unitario?: number | null
+                    producto_nombre?: string | null
+                    variante_nombre?: string | null
                     cantidad: number
                 }
                 Update: {
                     id?: number
                     pedido_id?: number | null
                     producto_id?: number | null
+                    producto_variante_id?: number | null
+                    precio_unitario?: number | null
+                    producto_nombre?: string | null
+                    variante_nombre?: string | null
                     cantidad?: number
                 }
             }

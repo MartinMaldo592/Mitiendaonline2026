@@ -99,6 +99,94 @@ drop policy if exists "Staff puede leer pedido_items" on public.pedido_items;
 drop policy if exists "Staff puede leer productos" on public.productos;
 drop policy if exists "Staff puede actualizar productos" on public.productos;
 
+drop policy if exists "Staff puede leer producto_variantes" on public.producto_variantes;
+drop policy if exists "Staff puede actualizar producto_variantes" on public.producto_variantes;
+drop policy if exists "Staff puede leer producto_especificaciones" on public.producto_especificaciones;
+
+-- =============================================
+-- Variantes / Especificaciones (RLS)
+-- =============================================
+
+alter table public.producto_variantes enable row level security;
+alter table public.producto_especificaciones enable row level security;
+
+drop policy if exists "Public puede leer producto_variantes" on public.producto_variantes;
+drop policy if exists "Admin puede crear producto_variantes" on public.producto_variantes;
+drop policy if exists "Admin puede actualizar producto_variantes" on public.producto_variantes;
+drop policy if exists "Admin puede eliminar producto_variantes" on public.producto_variantes;
+
+create policy "Public puede leer producto_variantes"
+  on public.producto_variantes for select
+  using (activo = true);
+
+create policy "Admin puede crear producto_variantes"
+  on public.producto_variantes for insert
+  with check (public.is_admin());
+
+create policy "Admin puede actualizar producto_variantes"
+  on public.producto_variantes for update
+  using (public.is_admin())
+  with check (public.is_admin());
+
+create policy "Admin puede eliminar producto_variantes"
+  on public.producto_variantes for delete
+  using (public.is_admin());
+
+create policy "Staff puede leer producto_variantes"
+  on public.producto_variantes for select
+  using (true);
+
+create policy "Staff puede actualizar producto_variantes"
+  on public.producto_variantes for update
+  using (
+    public.is_admin()
+    or exists (
+      select 1
+      from public.pedido_items pi
+      join public.pedidos p on p.id = pi.pedido_id
+      where pi.producto_variante_id = producto_variantes.id
+        and p.asignado_a = auth.uid()
+        and coalesce(p.stock_descontado, false) = false
+    )
+  )
+  with check (
+    public.is_admin()
+    or exists (
+      select 1
+      from public.pedido_items pi
+      join public.pedidos p on p.id = pi.pedido_id
+      where pi.producto_variante_id = producto_variantes.id
+        and p.asignado_a = auth.uid()
+        and coalesce(p.stock_descontado, false) = false
+    )
+  );
+
+drop policy if exists "Public puede leer producto_especificaciones" on public.producto_especificaciones;
+drop policy if exists "Admin puede crear producto_especificaciones" on public.producto_especificaciones;
+drop policy if exists "Admin puede actualizar producto_especificaciones" on public.producto_especificaciones;
+drop policy if exists "Admin puede eliminar producto_especificaciones" on public.producto_especificaciones;
+
+create policy "Public puede leer producto_especificaciones"
+  on public.producto_especificaciones for select
+  using (true);
+
+create policy "Admin puede crear producto_especificaciones"
+  on public.producto_especificaciones for insert
+  with check (public.is_admin());
+
+create policy "Admin puede actualizar producto_especificaciones"
+  on public.producto_especificaciones for update
+  using (public.is_admin())
+  with check (public.is_admin());
+
+create policy "Admin puede eliminar producto_especificaciones"
+  on public.producto_especificaciones for delete
+  using (public.is_admin());
+
+create policy "Staff puede leer producto_especificaciones"
+  on public.producto_especificaciones for select
+  using (true);
+
 create policy "Staff puede leer pedidos"
   on public.pedidos for select
   using (public.is_admin() or asignado_a = auth.uid());
@@ -205,4 +293,153 @@ create policy "Admin puede actualizar incidencias"
   on public.incidencias for update
   using (public.is_admin())
   with check (public.is_admin());
+
+-- =============================================
+-- CUPONES (admin CRUD + público lectura + consumo atómico)
+-- =============================================
+
+alter table public.cupones enable row level security;
+
+drop policy if exists "Admin puede leer cupones" on public.cupones;
+drop policy if exists "Admin puede crear cupones" on public.cupones;
+drop policy if exists "Admin puede actualizar cupones" on public.cupones;
+drop policy if exists "Admin puede eliminar cupones" on public.cupones;
+drop policy if exists "Public puede leer cupones activos" on public.cupones;
+
+create policy "Admin puede leer cupones"
+  on public.cupones for select
+  using (public.is_admin());
+
+create policy "Admin puede crear cupones"
+  on public.cupones for insert
+  with check (public.is_admin());
+
+create policy "Admin puede actualizar cupones"
+  on public.cupones for update
+  using (public.is_admin())
+  with check (public.is_admin());
+
+create policy "Admin puede eliminar cupones"
+  on public.cupones for delete
+  using (public.is_admin());
+
+create policy "Public puede leer cupones activos"
+  on public.cupones for select
+  using (
+    activo = true
+    and (starts_at is null or starts_at <= now())
+    and (expires_at is null or expires_at >= now())
+    and (max_usos is null or usos < max_usos)
+  );
+
+create or replace function public.apply_coupon_to_pedido()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_code text;
+  v_descuento numeric;
+  v_rows int;
+  v_tipo text;
+  v_valor numeric;
+  v_activo boolean;
+  v_min_total numeric;
+  v_max_usos int;
+  v_usos int;
+  v_starts_at timestamptz;
+  v_expires_at timestamptz;
+begin
+  if new.cupon_codigo is null or length(trim(new.cupon_codigo)) = 0 then
+    return new;
+  end if;
+
+  if new.subtotal is null then
+    raise exception 'Subtotal requerido para aplicar cupón';
+  end if;
+
+  v_code := upper(trim(new.cupon_codigo));
+
+  select c.tipo, c.valor, c.activo, c.min_total, c.max_usos, c.usos, c.starts_at, c.expires_at
+    into v_tipo, v_valor, v_activo, v_min_total, v_max_usos, v_usos, v_starts_at, v_expires_at
+  from public.cupones c
+  where c.codigo = v_code
+  for update;
+
+  if not found then
+    raise exception 'Cupón inválido';
+  end if;
+
+  if v_activo is not true then
+    raise exception 'Cupón inactivo';
+  end if;
+
+  if v_starts_at is not null and now() < v_starts_at then
+    raise exception 'Cupón aún no disponible';
+  end if;
+
+  if v_expires_at is not null and now() > v_expires_at then
+    raise exception 'Cupón expiró';
+  end if;
+
+  if coalesce(new.subtotal, 0) < coalesce(v_min_total, 0) then
+    raise exception 'El cupón no aplica para este total';
+  end if;
+
+  if v_max_usos is not null and v_usos >= v_max_usos then
+    raise exception 'Cupón agotado';
+  end if;
+
+  if v_tipo = 'porcentaje' then
+    v_descuento := round(coalesce(new.subtotal, 0) * (coalesce(v_valor, 0) / 100.0), 2);
+  else
+    v_descuento := coalesce(v_valor, 0);
+  end if;
+
+  v_descuento := greatest(0, least(coalesce(new.subtotal, 0), v_descuento));
+
+  update public.cupones
+     set usos = usos + 1
+   where codigo = v_code
+     and (max_usos is null or usos < max_usos);
+
+  get diagnostics v_rows = row_count;
+  if v_rows = 0 then
+    raise exception 'Cupón agotado';
+  end if;
+
+  new.cupon_codigo := v_code;
+  new.descuento := v_descuento;
+  new.total := greatest(0, round((coalesce(new.subtotal, 0) - v_descuento), 2));
+
+  return new;
+end;
+$$;
+
+drop trigger if exists before_insert_apply_coupon on public.pedidos;
+create trigger before_insert_apply_coupon
+  before insert on public.pedidos
+  for each row execute procedure public.apply_coupon_to_pedido();
+
+create or replace function public.get_top_products(limit_count int default 8, exclude_id bigint default null)
+returns setof public.productos
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select p.*
+  from public.productos p
+  left join public.pedido_items pi on pi.producto_id = p.id
+  left join public.pedidos pe on pe.id = pi.pedido_id
+  where (exclude_id is null or p.id <> exclude_id)
+    and coalesce(p.stock, 0) > 0
+  group by p.id
+  order by coalesce(sum(pi.cantidad), 0) desc, p.created_at desc
+  limit limit_count;
+$$;
+
+grant execute on function public.get_top_products(int, bigint) to anon;
+grant execute on function public.get_top_products(int, bigint) to authenticated;
 
