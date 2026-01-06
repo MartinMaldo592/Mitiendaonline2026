@@ -1,17 +1,20 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useRoleGuard } from "@/lib/use-role-guard"
+import { AccessDenied } from "@/components/admin/access-denied"
 
 export default function UsuariosPage() {
   const router = useRouter()
 
   const [loading, setLoading] = useState(true)
-  const [accessDenied, setAccessDenied] = useState(false)
+
+  const guard = useRoleGuard({ allowedRoles: ["admin"] })
 
   const [profiles, setProfiles] = useState<any[]>([])
 
@@ -20,42 +23,24 @@ export default function UsuariosPage() {
   const [password, setPassword] = useState("")
   const [creating, setCreating] = useState(false)
 
-  useEffect(() => {
-    init()
-  }, [])
-
-  async function init() {
-    const { data: { session } } = await supabase.auth.getSession()
-
-    if (!session) {
-      router.push("/auth/login")
-      return
-    }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", session.user.id)
-      .maybeSingle()
-
-    if (profile?.role !== "admin") {
-      setAccessDenied(true)
-      setLoading(false)
-      return
-    }
-
-    await fetchProfiles()
-    setLoading(false)
-  }
-
-  async function fetchProfiles() {
+  const fetchProfiles = useCallback(async () => {
     const { data } = await supabase
       .from("profiles")
       .select("id, email, nombre, role, created_at")
       .order("created_at", { ascending: false })
 
     setProfiles(data || [])
-  }
+  }, [])
+
+  useEffect(() => {
+    if (guard.loading || guard.accessDenied) return
+
+    ;(async () => {
+      setLoading(true)
+      await fetchProfiles()
+      setLoading(false)
+    })()
+  }, [guard.loading, guard.accessDenied, fetchProfiles])
 
   async function handleCreateWorker() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -102,17 +87,12 @@ export default function UsuariosPage() {
     }
   }
 
-  if (loading) {
+  if (guard.loading || loading) {
     return <div className="p-10">Cargando...</div>
   }
 
-  if (accessDenied) {
-    return (
-      <div className="p-10">
-        <h1 className="text-2xl font-bold">Acceso denegado</h1>
-        <p className="text-muted-foreground mt-2">Solo administradores pueden gestionar usuarios.</p>
-      </div>
-    )
+  if (guard.accessDenied) {
+    return <AccessDenied message="Solo administradores pueden gestionar usuarios." />
   }
 
   return (

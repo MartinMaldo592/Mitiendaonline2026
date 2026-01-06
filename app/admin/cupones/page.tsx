@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
+import { useRoleGuard } from "@/lib/use-role-guard"
+import { AccessDenied } from "@/components/admin/access-denied"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -74,10 +75,9 @@ function toIsoEndOfDayOrNull(dateStr: string) {
 }
 
 export default function CuponesAdminPage() {
-  const router = useRouter()
-
   const [loading, setLoading] = useState(true)
-  const [accessDenied, setAccessDenied] = useState(false)
+
+  const guard = useRoleGuard({ allowedRoles: ["admin"] })
 
   const [coupons, setCoupons] = useState<CouponRow[]>([])
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -94,36 +94,7 @@ export default function CuponesAdminPage() {
   const [startsAt, setStartsAt] = useState<string>("")
   const [expiresAt, setExpiresAt] = useState<string>("")
 
-  useEffect(() => {
-    init()
-  }, [])
-
-  async function init() {
-    setLoading(true)
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      router.push("/auth/login")
-      return
-    }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", session.user.id)
-      .single()
-
-    const role = profile?.role || "worker"
-    if (role !== "admin") {
-      setAccessDenied(true)
-      setLoading(false)
-      return
-    }
-
-    await fetchCoupons()
-    setLoading(false)
-  }
-
-  async function fetchCoupons() {
+  const fetchCoupons = useCallback(async () => {
     const { data, error } = await supabase
       .from("cupones")
       .select("*")
@@ -136,7 +107,17 @@ export default function CuponesAdminPage() {
     }
 
     setCoupons((data as any[]) as CouponRow[])
-  }
+  }, [])
+
+  useEffect(() => {
+    if (guard.loading || guard.accessDenied) return
+
+    ;(async () => {
+      setLoading(true)
+      await fetchCoupons()
+      setLoading(false)
+    })()
+  }, [guard.loading, guard.accessDenied, fetchCoupons])
 
   function resetForm() {
     setEditing(null)
@@ -252,17 +233,12 @@ export default function CuponesAdminPage() {
     return { total, activos }
   }, [coupons])
 
-  if (loading) {
+  if (guard.loading || loading) {
     return <div className="p-10">Cargando...</div>
   }
 
-  if (accessDenied) {
-    return (
-      <div className="p-10">
-        <h1 className="text-2xl font-bold">Acceso denegado</h1>
-        <p className="text-muted-foreground mt-2">Solo administradores pueden gestionar cupones.</p>
-      </div>
-    )
+  if (guard.accessDenied) {
+    return <AccessDenied message="Solo administradores pueden gestionar cupones." />
   }
 
   return (

@@ -1,7 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
+import { useRoleGuard } from "@/lib/use-role-guard"
+import { AccessDenied } from "@/components/admin/access-denied"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DollarSign, ShoppingBag, Users, Package, ClipboardList } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
@@ -19,31 +21,12 @@ export default function AdminDashboard() {
         productosLowStock: 0
     })
     const [loading, setLoading] = useState(true)
+
+    const guard = useRoleGuard({ allowedRoles: ["admin", "worker"] })
+
     const [userRole, setUserRole] = useState<string>('worker')
-    const [userId, setUserId] = useState<string>('')
 
-    useEffect(() => {
-        initDashboard()
-    }, [])
-
-    async function initDashboard() {
-        // Get user role
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session) {
-            setUserId(session.user.id)
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('id', session.user.id)
-                .single()
-            setUserRole(profile?.role || 'worker')
-            await fetchStats(profile?.role || 'worker', session.user.id)
-        } else {
-            await fetchStats('worker', '')
-        }
-    }
-
-    async function fetchStats(role: string, currentUserId: string) {
+    const fetchStats = useCallback(async (role: string, currentUserId: string) => {
         setLoading(true)
 
         // Fetch pedidos
@@ -102,6 +85,27 @@ export default function AdminDashboard() {
             productosLowStock
         })
         setLoading(false)
+    }, [])
+
+    useEffect(() => {
+        if (guard.loading || guard.accessDenied) return
+
+        const role = guard.role || 'worker'
+        setUserRole(role)
+
+        ;(async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            const uid = session?.user?.id || ''
+            await fetchStats(role, uid)
+        })()
+    }, [guard.loading, guard.accessDenied, guard.role, fetchStats])
+
+    if (guard.loading) {
+        return <div className="p-10">Cargando...</div>
+    }
+
+    if (guard.accessDenied) {
+        return <AccessDenied />
     }
 
     return (

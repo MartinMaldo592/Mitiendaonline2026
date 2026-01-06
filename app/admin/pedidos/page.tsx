@@ -1,7 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
+import { useRoleGuard } from "@/lib/use-role-guard"
+import { AccessDenied } from "@/components/admin/access-denied"
 import {
     Table,
     TableBody,
@@ -10,7 +12,6 @@ import {
     TableHeader,
     TableRow
 } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -21,13 +22,8 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { formatCurrency } from "@/lib/utils"
-import { Eye, Search, Filter, UserPlus, RefreshCw, User } from "lucide-react"
+import { Eye, Search, UserPlus, RefreshCw, User } from "lucide-react"
 import Link from "next/link"
-
-interface PedidosPageProps {
-    userRole?: string
-    userId?: string
-}
 
 export default function PedidosPage() {
     const [pedidos, setPedidos] = useState<any[]>([])
@@ -36,6 +32,56 @@ export default function PedidosPage() {
     const [userRole, setUserRole] = useState<string>('worker')
     const [userId, setUserId] = useState<string>('')
     const [filterWorker, setFilterWorker] = useState<string>('all')
+
+    const guard = useRoleGuard({ allowedRoles: ["admin", "worker"] })
+
+    const fetchPedidos = useCallback(async (role: string, currentUserId: string) => {
+        setLoading(true)
+
+        try {
+            let query = supabase
+                .from('pedidos')
+                .select(`
+                    *,
+                    clientes (nombre, telefono, dni)
+                `)
+                .order('created_at', { ascending: false })
+
+            if (role === 'worker') {
+                query = query.eq('asignado_a', currentUserId)
+            }
+
+            const { data, error } = await query
+
+            if (error) {
+                console.error("Error fetching pedidos:", error)
+                if (error.message.includes('asignado_a')) {
+                    const { data: fallbackData } = await supabase
+                        .from('pedidos')
+                        .select(`*, clientes (nombre, telefono, dni)`)
+                        .order('created_at', { ascending: false })
+                    if (fallbackData) setPedidos(fallbackData)
+                }
+            } else if (data) {
+                const pedidosWithWorkers = await Promise.all(data.map(async (pedido) => {
+                    if (pedido.asignado_a) {
+                        const { data: workerProfile } = await supabase
+                            .from('profiles')
+                            .select('id, email, nombre')
+                            .eq('id', pedido.asignado_a)
+                            .single()
+                        return { ...pedido, asignado_perfil: workerProfile }
+                    }
+                    return { ...pedido, asignado_perfil: null }
+                }))
+                setPedidos(pedidosWithWorkers)
+            }
+        } catch (err) {
+            console.error("Error in fetchPedidos:", err)
+        }
+
+        setLoading(false)
+    }, [])
 
     function csvEscape(value: unknown) {
         const str = String(value ?? '')
@@ -86,88 +132,29 @@ export default function PedidosPage() {
     }
 
     useEffect(() => {
-        initPage()
-    }, [])
+        if (guard.loading || guard.accessDenied) return
 
-    async function initPage() {
-        // Get current user and role
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) return
-
-        setUserId(session.user.id)
-
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', session.user.id)
-            .single()
-
-        const role = profile?.role || 'worker'
+        const role = String(guard.role || 'worker')
         setUserRole(role)
 
-        // Fetch workers list (for admin filter/assignment)
-        if (role === 'admin') {
-            const { data: workersData } = await supabase
-                .from('profiles')
-                .select('id, email, nombre, role')
-                .eq('role', 'worker')
-            if (workersData) setWorkers(workersData)
-        }
+        ;(async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            const uid = session?.user?.id || ''
+            setUserId(uid)
 
-        await fetchPedidos(role, session.user.id)
-    }
-
-    async function fetchPedidos(role: string, currentUserId: string) {
-        setLoading(true)
-
-        try {
-            // Base query - without the foreign key join that may not exist yet
-            let query = supabase
-                .from('pedidos')
-                .select(`
-                    *,
-                    clientes (nombre, telefono, dni)
-                `)
-                .order('created_at', { ascending: false })
-
-            // Workers only see orders assigned to them
-            if (role === 'worker') {
-                query = query.eq('asignado_a', currentUserId)
+            if (role === 'admin') {
+                const { data: workersData } = await supabase
+                    .from('profiles')
+                    .select('id, email, nombre, role')
+                    .eq('role', 'worker')
+                if (workersData) setWorkers(workersData)
+            } else {
+                setWorkers([])
             }
 
-            const { data, error } = await query
-
-            if (error) {
-                console.error("Error fetching pedidos:", error)
-                // If asignado_a column doesn't exist, try without it
-                if (error.message.includes('asignado_a')) {
-                    const { data: fallbackData } = await supabase
-                        .from('pedidos')
-                        .select(`*, clientes (nombre, telefono, dni)`)
-                        .order('created_at', { ascending: false })
-                    if (fallbackData) setPedidos(fallbackData)
-                }
-            } else if (data) {
-                // Fetch worker profiles separately if delegation is enabled
-                const pedidosWithWorkers = await Promise.all(data.map(async (pedido) => {
-                    if (pedido.asignado_a) {
-                        const { data: workerProfile } = await supabase
-                            .from('profiles')
-                            .select('id, email, nombre')
-                            .eq('id', pedido.asignado_a)
-                            .single()
-                        return { ...pedido, asignado_perfil: workerProfile }
-                    }
-                    return { ...pedido, asignado_perfil: null }
-                }))
-                setPedidos(pedidosWithWorkers)
-            }
-        } catch (err) {
-            console.error("Error in fetchPedidos:", err)
-        }
-
-        setLoading(false)
-    }
+            await fetchPedidos(role, uid)
+        })()
+    }, [guard.loading, guard.accessDenied, guard.role, fetchPedidos])
 
     async function handleAssignWorker(pedidoId: number, workerId: string) {
         const assignValue = workerId === 'unassigned' ? null : workerId
@@ -207,6 +194,14 @@ export default function PedidosPage() {
             return p.asignado_a === filterWorker
         })
         : pedidos
+
+    if (guard.loading) {
+        return <div className="p-10">Cargando...</div>
+    }
+
+    if (guard.accessDenied) {
+        return <AccessDenied />
+    }
 
     return (
         <div className="space-y-6">

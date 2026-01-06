@@ -1,9 +1,11 @@
 
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
+import { useRoleGuard } from "@/lib/use-role-guard"
+import { AccessDenied } from "@/components/admin/access-denied"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -20,6 +22,8 @@ export default function PedidoDetallePage() {
     const params = useParams()
     const router = useRouter()
     const id = params.id as string
+
+    const guard = useRoleGuard({ allowedRoles: ["admin", "worker"] })
 
     const [pedido, setPedido] = useState<any>(null)
     const [items, setItems] = useState<any[]>([])
@@ -49,38 +53,9 @@ export default function PedidoDetallePage() {
         return false
     }
 
-    useEffect(() => {
-        if (id) initPage()
-    }, [id])
-
-    async function initPage() {
-        // Get user role
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session) {
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('id', session.user.id)
-                .single()
-            setUserRole(profile?.role || 'worker')
-
-            // Fetch workers for admin
-            if (profile?.role === 'admin') {
-                const { data: workersData } = await supabase
-                    .from('profiles')
-                    .select('id, email, nombre')
-                    .eq('role', 'worker')
-                if (workersData) setWorkers(workersData)
-            }
-        }
-
-        await fetchPedido()
-    }
-
-    async function fetchPedido() {
+    const fetchPedido = useCallback(async () => {
         setLoading(true)
 
-        // Fetch pedido without the FK join that may not exist
         const { data: pedidoData, error } = await supabase
             .from('pedidos')
             .select(`
@@ -96,7 +71,6 @@ export default function PedidoDetallePage() {
             return
         }
 
-        // Fetch assigned worker profile separately if exists
         let asignadoPerfil = null
         if (pedidoData.asignado_a) {
             const { data: workerProfile } = await supabase
@@ -122,7 +96,29 @@ export default function PedidoDetallePage() {
         if (itemsData) setItems(itemsData)
 
         setLoading(false)
-    }
+    }, [id])
+
+    useEffect(() => {
+        if (!id) return
+        if (guard.loading || guard.accessDenied) return
+
+        const role = String(guard.role || 'worker')
+        setUserRole(role)
+
+        ;(async () => {
+            if (role === 'admin') {
+                const { data: workersData } = await supabase
+                    .from('profiles')
+                    .select('id, email, nombre')
+                    .eq('role', 'worker')
+                if (workersData) setWorkers(workersData)
+            } else {
+                setWorkers([])
+            }
+
+            await fetchPedido()
+        })()
+    }, [id, guard.loading, guard.accessDenied, guard.role, fetchPedido])
 
     async function handleAssignWorker(workerId: string) {
         const assignValue = workerId === 'unassigned' ? null : workerId
@@ -236,6 +232,9 @@ export default function PedidoDetallePage() {
         }
         setUpdating(false)
     }
+
+    if (guard.loading) return <div className="p-10">Cargando...</div>
+    if (guard.accessDenied) return <AccessDenied />
 
     if (loading) return <div className="p-10 text-center">Cargando pedido...</div>
     if (!pedido) return <div className="p-10 text-center">Pedido no encontrado</div>

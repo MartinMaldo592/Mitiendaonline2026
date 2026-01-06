@@ -1,9 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
+import { useRoleGuard } from "@/lib/use-role-guard"
+import { AccessDenied } from "@/components/admin/access-denied"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -20,38 +22,11 @@ import { formatCurrency } from "@/lib/utils"
 export default function DashboardPedidosPendientesPage() {
     const router = useRouter()
     const [loading, setLoading] = useState(true)
-    const [accessDenied, setAccessDenied] = useState(false)
     const [pedidos, setPedidos] = useState<any[]>([])
 
-    useEffect(() => {
-        checkAccessAndFetch()
-    }, [])
+    const guard = useRoleGuard({ allowedRoles: ["admin"] })
 
-    async function checkAccessAndFetch() {
-        setLoading(true)
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) {
-            router.push("/auth/login")
-            return
-        }
-
-        const { data: profile } = await supabase
-            .from("profiles")
-            .select("role")
-            .eq("id", session.user.id)
-            .single()
-
-        const role = profile?.role || "worker"
-        if (role !== "admin") {
-            setAccessDenied(true)
-            setLoading(false)
-            return
-        }
-
-        await fetchPendientes()
-    }
-
-    async function fetchPendientes() {
+    const fetchPendientes = useCallback(async () => {
         setLoading(true)
 
         const { data, error } = await supabase
@@ -68,7 +43,12 @@ export default function DashboardPedidosPendientesPage() {
         }
 
         setLoading(false)
-    }
+    }, [])
+
+    useEffect(() => {
+        if (guard.loading || guard.accessDenied) return
+        fetchPendientes()
+    }, [guard.loading, guard.accessDenied, fetchPendientes])
 
     const resumen = useMemo(() => {
         const count = pedidos.length
@@ -76,21 +56,12 @@ export default function DashboardPedidosPendientesPage() {
         return { count, total }
     }, [pedidos])
 
-    if (accessDenied) {
-        return (
-            <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                    <Button variant="ghost" size="icon" onClick={() => router.push("/admin/dashboard")}
-                    >
-                        <ArrowLeft className="h-5 w-5" />
-                    </Button>
-                    <div>
-                        <h1 className="text-2xl font-bold">Acceso restringido</h1>
-                        <p className="text-sm text-muted-foreground">Solo administradores pueden ver esta sección.</p>
-                    </div>
-                </div>
-            </div>
-        )
+    if (guard.loading) {
+        return <div className="p-10">Cargando...</div>
+    }
+
+    if (guard.accessDenied) {
+        return <AccessDenied message="Solo administradores pueden ver esta sección." />
     }
 
     return (

@@ -1,10 +1,11 @@
 
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
+import { useRoleGuard } from "@/lib/use-role-guard"
+import { AccessDenied } from "@/components/admin/access-denied"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -39,10 +40,12 @@ type Tipo = (typeof TIPOS)[number]
 type TipoFilter = Tipo | "all"
 
 export default function IncidenciasPage() {
-    const router = useRouter()
     const [loading, setLoading] = useState(true)
     const [creating, setCreating] = useState(false)
     const [uploading, setUploading] = useState(false)
+
+    const guard = useRoleGuard({ allowedRoles: ["admin", "worker"] })
+
     const [userRole, setUserRole] = useState<string>("worker")
 
     const [pedidoId, setPedidoId] = useState<string>("")
@@ -56,31 +59,7 @@ export default function IncidenciasPage() {
     const [incidencias, setIncidencias] = useState<any[]>([])
     const [pedidos, setPedidos] = useState<any[]>([])
 
-    useEffect(() => {
-        initPage()
-    }, [])
-
-    async function initPage() {
-        setLoading(true)
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) {
-            router.push("/auth/login")
-            return
-        }
-
-        const { data: profile } = await supabase
-            .from("profiles")
-            .select("role")
-            .eq("id", session.user.id)
-            .single()
-
-        setUserRole(profile?.role || "worker")
-
-        await fetchPedidos()
-        await fetchIncidencias()
-    }
-
-    async function fetchPedidos() {
+    const fetchPedidos = useCallback(async () => {
         const { data, error } = await supabase
             .from('pedidos')
             .select('id, status, created_at, clientes (nombre, telefono)')
@@ -93,11 +72,9 @@ export default function IncidenciasPage() {
         } else {
             setPedidos((data as any[]) || [])
         }
-    }
+    }, [])
 
-    async function fetchIncidencias() {
-        setLoading(true)
-
+    const fetchIncidencias = useCallback(async () => {
         const { data, error } = await supabase
             .from("incidencias")
             .select(`*, pedidos (id, status, created_at, clientes (nombre, telefono))`)
@@ -109,9 +86,20 @@ export default function IncidenciasPage() {
         } else {
             setIncidencias((data as any[]) || [])
         }
+    }, [])
 
+    const refreshAll = useCallback(async () => {
+        setLoading(true)
+        await fetchPedidos()
+        await fetchIncidencias()
         setLoading(false)
-    }
+    }, [fetchIncidencias, fetchPedidos])
+
+    useEffect(() => {
+        if (guard.loading || guard.accessDenied) return
+        setUserRole(String(guard.role || 'worker'))
+        refreshAll()
+    }, [guard.loading, guard.accessDenied, guard.role, refreshAll])
 
     const filtered = useMemo(() => {
         const pid = filterPedido.trim()
@@ -215,6 +203,14 @@ export default function IncidenciasPage() {
         await fetchIncidencias()
     }
 
+    if (guard.loading || loading) {
+        return <div className="p-10">Cargando...</div>
+    }
+
+    if (guard.accessDenied) {
+        return <AccessDenied />
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between gap-3">
@@ -222,7 +218,7 @@ export default function IncidenciasPage() {
                     <h1 className="text-3xl font-bold text-gray-900">Incidencias</h1>
                     <p className="text-gray-500">Gestiona reclamos, devoluciones y problemas de pedidos.</p>
                 </div>
-                <Button variant="outline" className="gap-2" onClick={fetchIncidencias} disabled={loading}>
+                <Button variant="outline" className="gap-2" onClick={refreshAll} disabled={loading}>
                     <RefreshCw className="h-4 w-4" /> Actualizar
                 </Button>
             </div>

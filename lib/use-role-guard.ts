@@ -8,6 +8,12 @@ type RoleGuardOptions = {
     allowedRoles: string[]
 }
 
+function isInvalidRefreshTokenError(err: unknown) {
+    const msg = String((err as any)?.message || '')
+    const lower = msg.toLowerCase()
+    return lower.includes('invalid refresh token') || lower.includes('refresh token not found')
+}
+
 export function useRoleGuard({ allowedRoles }: RoleGuardOptions) {
     const router = useRouter()
 
@@ -22,7 +28,22 @@ export function useRoleGuard({ allowedRoles }: RoleGuardOptions) {
             setLoading(true)
             setAccessDenied(false)
 
-            const { data: { session } } = await supabase.auth.getSession()
+            let session: any = null
+            try {
+                const res = await supabase.auth.getSession()
+                const err = (res as any)?.error
+                if (err) throw err
+                session = res?.data?.session ?? null
+            } catch (err) {
+                if (isInvalidRefreshTokenError(err)) {
+                    try {
+                        await supabase.auth.signOut()
+                    } catch (e) {
+                    }
+                }
+                router.replace("/auth/login")
+                return
+            }
 
             if (!session) {
                 router.push("/auth/login")

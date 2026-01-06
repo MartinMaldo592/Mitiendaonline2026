@@ -1,9 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
+import { useRoleGuard } from "@/lib/use-role-guard"
+import { AccessDenied } from "@/components/admin/access-denied"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -21,40 +23,15 @@ import { ArrowLeft, RefreshCw } from "lucide-react"
 export default function DashboardVentasPage() {
     const router = useRouter()
     const [loading, setLoading] = useState(true)
-    const [accessDenied, setAccessDenied] = useState(false)
+
+    const guard = useRoleGuard({ allowedRoles: ["admin"] })
+
+    const [initialized, setInitialized] = useState(false)
     const [from, setFrom] = useState<string>(new Date().toISOString().slice(0, 10))
     const [to, setTo] = useState<string>(new Date().toISOString().slice(0, 10))
     const [pedidos, setPedidos] = useState<any[]>([])
 
-    useEffect(() => {
-        checkAccessAndFetch()
-    }, [])
-
-    async function checkAccessAndFetch() {
-        setLoading(true)
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) {
-            router.push("/auth/login")
-            return
-        }
-
-        const { data: profile } = await supabase
-            .from("profiles")
-            .select("role")
-            .eq("id", session.user.id)
-            .single()
-
-        const role = profile?.role || "worker"
-        if (role !== "admin") {
-            setAccessDenied(true)
-            setLoading(false)
-            return
-        }
-
-        await fetchVentas()
-    }
-
-    async function fetchVentas() {
+    const fetchVentas = useCallback(async () => {
         setLoading(true)
 
         const fromIso = from ? `${from}T00:00:00.000Z` : undefined
@@ -79,7 +56,17 @@ export default function DashboardVentasPage() {
         }
 
         setLoading(false)
-    }
+    }, [from, to])
+
+    useEffect(() => {
+        if (guard.loading || guard.accessDenied) return
+        if (initialized) return
+
+        ;(async () => {
+            await fetchVentas()
+            setInitialized(true)
+        })()
+    }, [guard.loading, guard.accessDenied, initialized, fetchVentas])
 
     const resumen = useMemo(() => {
         const total = pedidos.reduce((sum, p) => sum + (Number(p.total) || 0), 0)
@@ -88,21 +75,12 @@ export default function DashboardVentasPage() {
         return { total, count, avg }
     }, [pedidos])
 
-    if (accessDenied) {
-        return (
-            <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                    <Button variant="ghost" size="icon" onClick={() => router.push("/admin/dashboard")}
-                    >
-                        <ArrowLeft className="h-5 w-5" />
-                    </Button>
-                    <div>
-                        <h1 className="text-2xl font-bold">Acceso restringido</h1>
-                        <p className="text-sm text-muted-foreground">Solo administradores pueden ver esta sección.</p>
-                    </div>
-                </div>
-            </div>
-        )
+    if (guard.loading) {
+        return <div className="p-10">Cargando...</div>
+    }
+
+    if (guard.accessDenied) {
+        return <AccessDenied message="Solo administradores pueden ver esta sección." />
     }
 
     return (
