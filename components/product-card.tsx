@@ -79,7 +79,7 @@ export function ProductCard({ product }: ProductCardProps) {
                         <h4 className="font-medium text-sm line-clamp-2 leading-tight mb-1 text-foreground">{product.nombre}</h4>
                     </Link>
                 </div>
-                <div className="mt-1">
+                <div className="mt-1" data-nosnippet>
                     <div className="flex items-baseline gap-2">
                         <p className="text-lg font-extrabold text-primary tracking-tight">{formatCurrency(currentPrice)}</p>
                         {hasSale && (

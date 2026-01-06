@@ -14,24 +14,43 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://blama.shop";
+
 export const metadata: Metadata = {
   title: {
-    default: "Blama Shop",
-    template: "%s | Blama Shop",
+    default: "Blama.shop",
+    template: "%s | Blama.shop",
   },
-  applicationName: "Blama Shop",
-  description: "Blama Shop - Tienda online con pedidos directos a WhatsApp.",
+  metadataBase: new URL(siteUrl),
+  alternates: {
+    canonical: siteUrl,
+  },
+  applicationName: "Blama.shop",
+  description:
+    "Blama.shop es una tienda online en Perú con productos seleccionados, compras simples y atención rápida por WhatsApp. Encuentra novedades, ofertas y envíos a domicilio.",
   openGraph: {
-    title: "Blama Shop",
-    description: "Blama Shop - Tienda online con pedidos directos a WhatsApp.",
+    title: "Blama.shop",
+    description:
+      "Compra en Blama.shop: productos seleccionados, ofertas y atención rápida por WhatsApp. Envíos a domicilio y experiencia de compra simple.",
     type: "website",
     locale: "es_ES",
-    siteName: "Blama Shop",
+    siteName: "Blama.shop",
+    url: siteUrl,
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "Blama.shop",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Blama Shop",
-    description: "Blama Shop - Tienda online con pedidos directos a WhatsApp.",
+    title: "Blama.shop",
+    description:
+      "Tienda online en Perú con atención rápida por WhatsApp. Novedades, ofertas y envíos a domicilio.",
+    images: ["/twitter-image"],
   },
 };
 

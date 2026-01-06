@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { Button } from "@/components/ui/button"
 import { supabase } from "@/lib/supabaseClient"
 import { ProductCard } from "@/components/product-card"
@@ -7,6 +8,30 @@ import Link from "next/link"
 // Types
 type Product = Database['public']['Tables']['productos']['Row']
 type Category = Database['public']['Tables']['categorias']['Row']
+
+export const metadata: Metadata = {
+  title: "Tienda Online Premium",
+  description:
+    "Blama.shop es una tienda online en Perú con productos seleccionados, compras simples y atención rápida por WhatsApp. Descubre novedades, ofertas y envíos a domicilio.",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "Blama.shop | Tienda Online Premium",
+    description:
+      "Compra en Blama.shop: productos seleccionados, ofertas y atención rápida por WhatsApp. Envíos a domicilio y experiencia de compra simple.",
+    url: "/",
+    type: "website",
+    locale: "es_ES",
+    siteName: "Blama.shop",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Blama.shop | Tienda Online Premium",
+    description:
+      "Tienda online en Perú con atención rápida por WhatsApp. Novedades, ofertas y envíos a domicilio.",
+  },
+}
 
 export const revalidate = 0 // Disable cache for real-time feel (optional, better for dev)
 
@@ -100,7 +125,9 @@ export default async function Home({
         <div className="bg-gradient-to-r from-sidebar to-sidebar-primary rounded-2xl p-6 text-sidebar-primary-foreground shadow-xl relative overflow-hidden">
           <div className="relative z-10">
             <h2 className="text-2xl font-bold mb-2">Nueva Colección 2026</h2>
-            <p className="text-muted-foreground text-sm mb-4 max-w-[200px]">Envío gratis contraentrega en toda la ciudad.</p>
+            <p className="text-muted-foreground text-sm mb-4 max-w-[520px]">
+              Compra en Blama.shop: productos seleccionados, ofertas y atención rápida por WhatsApp. Envíos a domicilio y una experiencia de compra simple.
+            </p>
             <Button variant="secondary" size="sm" className="font-semibold shadow-lg hover:shadow-xl transition-shadow">
               Ver Ofertas
             </Button>
@@ -111,7 +138,7 @@ export default async function Home({
       </section>
 
       {bestSellers.length > 0 && (
-        <section className="p-4 px-2">
+        <section className="p-4 px-2" data-nosnippet>
           <div className="flex justify-between items-center mb-4 px-2">
             <h3 className="text-lg font-bold text-foreground">Lo más vendido</h3>
           </div>
@@ -124,7 +151,7 @@ export default async function Home({
       )}
 
       {/* Product Grid */}
-      <section className="p-4 px-2">
+      <section className="p-4 px-2" data-nosnippet>
         <div className="flex justify-between items-center mb-4 px-2">
           <h3 className="text-lg font-bold text-foreground">Populares</h3>
           <Button variant="link" size="sm" className="text-muted-foreground hover:text-primary">Ver todo</Button>
