@@ -249,86 +249,51 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
 
 
         try {
-            // A. Cliente
-            let clienteId: number;
-            const { data: existingClients, error: existingClientsError } = await supabase
-                .from('clientes')
-                .select('id')
-                .eq('telefono', phone)
-                .limit(1)
+            const normalizedPhone = String(phone || '').replace(/\D/g, '')
 
-            if (existingClientsError) throw new Error(existingClientsError.message)
-
-            const direccionCompleta = `${value} ${reference ? `(Ref: ${reference})` : ''} ${locationLink ? `[Link: ${locationLink}]` : ''}`.trim()
-
-            if (existingClients && existingClients.length > 0) {
-                clienteId = existingClients[0].id
-                const { error: updErr } = await supabase
-                    .from('clientes')
-                    .update({ nombre: name, dni: normalizedDni, direccion: direccionCompleta })
-                    .eq('id', clienteId)
-                if (updErr) throw new Error(updErr.message)
-            } else {
-                const { data: newClient, error: clientError } = await supabase
-                    .from('clientes')
-                    .insert({ nombre: name, telefono: phone, dni: normalizedDni, direccion: direccionCompleta })
-                    .select()
-                    .single()
-
-                if (clientError) throw new Error(clientError.message)
-                clienteId = newClient.id
-            }
-
-            // B. Pedido
-            let newOrder: any = null
-            const { data: orderWithCoupon, error: orderWithCouponError } = await supabase
-                .from('pedidos')
-                .insert({
-                    cliente_id: clienteId,
-                    subtotal: subtotalAmount,
-                    descuento: finalDiscount,
-                    cupon_codigo: appliedCouponCode,
-                    total: finalTotal,
-                    status: 'Pendiente',
-                    pago_status: 'Pago Contraentrega'
+            const createRes = await fetch('/api/checkout/whatsapp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    phone: normalizedPhone,
+                    dni: normalizedDni,
+                    address: value,
+                    reference,
+                    locationLink,
+                    couponCode: appliedCouponCode,
+                    discountAmount: finalDiscount,
+                    items: items.map((it: any) => ({
+                        id: it.id,
+                        quantity: it.quantity,
+                        precio: it.precio,
+                        nombre: it.nombre,
+                        producto_variante_id: (it as any).producto_variante_id ?? null,
+                        variante_nombre: (it as any).variante_nombre ?? null,
+                    })),
                 })
-                .select()
-                .single()
+            })
 
-            if (orderWithCouponError) {
-                // Si el cliente ingresó cupón, NO hacemos fallback: debe fallar para no crear pedidos inconsistentes.
-                if (appliedCouponCode || finalDiscount > 0) {
-                    throw new Error(orderWithCouponError.message)
-                }
-                const { data: orderFallback, error: orderFallbackError } = await supabase
-                    .from('pedidos')
-                    .insert({ cliente_id: clienteId, total: finalTotal, status: 'Pendiente', pago_status: 'Pago Contraentrega' })
-                    .select()
-                    .single()
-
-                if (orderFallbackError) throw new Error(orderFallbackError.message)
-                newOrder = orderFallback
-            } else {
-                newOrder = orderWithCoupon
+            let createJson: any = null
+            try {
+                createJson = await createRes.json()
+            } catch (err) {
+                createJson = null
             }
 
-            // C. Items
-            const orderItems = items.map(item => ({
-                pedido_id: newOrder.id,
-                producto_id: item.id,
-                producto_variante_id: (item as any).producto_variante_id ?? null,
-                precio_unitario: Number((item as any).precio ?? 0),
-                producto_nombre: String((item as any).nombre ?? ''),
-                variante_nombre: (item as any).variante_nombre ?? null,
-                cantidad: item.quantity
-            }))
+            if (!createRes.ok || !createJson?.ok) {
+                const msg = String(createJson?.error || 'No se pudo crear el pedido')
+                throw new Error(msg)
+            }
 
-            const { error: itemsError } = await supabase.from('pedido_items').insert(orderItems)
-            if (itemsError) throw new Error(itemsError.message)
+            const newOrderId = Number(createJson?.orderId ?? 0)
+            if (!newOrderId) {
+                throw new Error('No se pudo crear el pedido')
+            }
 
             // E. WhatsApp mensaje al cliente
             const phoneNumberCliente = process.env.NEXT_PUBLIC_WHATSAPP_TIENDA || "982432561"
-            const orderIdFormatted = newOrder.id.toString().padStart(6, '0')
+            const orderIdFormatted = newOrderId.toString().padStart(6, '0')
 
             let messageCliente = `¡Hola! Soy ${name}. Quiero confirmar mi pedido: 🛍️\n`
             messageCliente += `📋 *Pedido #${orderIdFormatted}*\n\n`
@@ -366,7 +331,7 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
                         address: `${value} ${reference ? `(Ref: ${reference})` : ''}`,
                         items: items,
                         total: finalTotal,
-                        panelLink: `${window.location.origin}/admin/pedidos/${newOrder.id}`
+                        panelLink: `${window.location.origin}/admin/pedidos/${newOrderId}`
                     })
                 })
                 let notifyJson: any = null
