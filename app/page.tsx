@@ -10,6 +10,8 @@ import Link from "next/link"
 type Product = Database['public']['Tables']['productos']['Row']
 type Category = Database['public']['Tables']['categorias']['Row']
 
+ const HOME_PRODUCTS_LIMIT = 12
+
 export const metadata: Metadata = {
   title: "Tienda Online Premium",
   description:
@@ -34,7 +36,7 @@ export const metadata: Metadata = {
   },
 }
 
-export const revalidate = 0 // Disable cache for real-time feel (optional, better for dev)
+export const revalidate = 300 // Disable cache for real-time feel (optional, better for dev)
 
 export default async function Home({
   searchParams,
@@ -67,6 +69,8 @@ export default async function Home({
     .select('*')
     .order('created_at', { ascending: false })
 
+  productsQuery = productsQuery.limit(HOME_PRODUCTS_LIMIT)
+
   if (selectedCategory?.id) {
     productsQuery = productsQuery.eq('categoria_id', selectedCategory.id)
   }
@@ -81,6 +85,7 @@ export default async function Home({
         productos (*),
         pedidos (status)
       `)
+      .limit(1000)
 
     if (!soldItemsError && soldItems && soldItems.length > 0) {
       const soldByProductId = new Map<number, { product: Product; sold: number }>()
@@ -129,9 +134,12 @@ export default async function Home({
         <section className="p-4 px-2" data-nosnippet>
           <div className="flex justify-between items-center mb-4 px-2">
             <h3 className="text-lg font-bold text-foreground">Lo más vendido</h3>
+            <Button asChild variant="link" size="sm" className="text-muted-foreground hover:text-primary">
+              <Link href="/productos">Ver todo</Link>
+            </Button>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {bestSellers.map((product) => (
+            {bestSellers.slice(0, 10).map((product) => (
               <ProductCard key={`bestseller-${product.id}`} product={product} />
             ))}
           </div>
@@ -141,8 +149,13 @@ export default async function Home({
       {/* Product Grid */}
       <section className="p-4 px-2" data-nosnippet>
         <div className="flex justify-between items-center mb-4 px-2">
-          <h3 className="text-lg font-bold text-foreground">Populares</h3>
-          <Button variant="link" size="sm" className="text-muted-foreground hover:text-primary">Ver todo</Button>
+          <div className="flex flex-col">
+            <h3 className="text-lg font-bold text-foreground">Novedades</h3>
+            <span className="text-xs text-muted-foreground">Últimos productos agregados</span>
+          </div>
+          <Button asChild variant="link" size="sm" className="text-muted-foreground hover:text-primary">
+            <Link href="/productos">Ver todo</Link>
+          </Button>
         </div>
 
         {categories && categories.length > 0 && (
@@ -176,11 +189,17 @@ export default async function Home({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
+            {products.map((product, idx) => (
+              <ProductCard key={product.id} product={product} imagePriority={idx < 2} />
             ))}
           </div>
         )}
+
+        <div className="mt-6 flex justify-center">
+          <Button asChild className="rounded-xl">
+            <Link href="/productos">Ver todos los productos</Link>
+          </Button>
+        </div>
       </section>
     </main>
   )

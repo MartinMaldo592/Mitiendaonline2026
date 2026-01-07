@@ -15,9 +15,10 @@ type Product = Database['public']['Tables']['productos']['Row']
 
 interface ProductCardProps {
     product: Product
+    imagePriority?: boolean
 }
 
-export function ProductCard({ product }: ProductCardProps) {
+export function ProductCard({ product, imagePriority = false }: ProductCardProps) {
     const addItem = useCartStore((state) => state.addItem)
     const [isAdded, setIsAdded] = useState(false)
 
@@ -54,6 +55,8 @@ export function ProductCard({ product }: ProductCardProps) {
                             className="group-hover:scale-105 transition-transform duration-300"
                             autoPlay
                             intervalMs={2500}
+                            priority={imagePriority}
+                            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
                         />
                     ) : (
                         <div className="absolute inset-0 flex items-center justify-center text-muted-foreground group-hover:scale-110 transition-transform duration-300">
