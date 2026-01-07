@@ -160,6 +160,17 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
         return false
     }
 
+    function isMobileDevice() {
+        const ua = String(navigator?.userAgent || '').toLowerCase()
+        if (ua.includes('android')) return true
+        if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ipod')) return true
+        try {
+            if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return true
+        } catch (err) {
+        }
+        return false
+    }
+
     const handleApplyCoupon = async () => {
         setCouponError("")
         setCouponApplying(true)
@@ -235,8 +246,9 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
         // para que la tienda no se cierre.
         // Pre-abrimos la pestaña en blanco durante el click del usuario para minimizar bloqueos.
         const inApp = isInAppBrowser()
+        const isMobile = isMobileDevice()
         let popup: Window | null = null
-        if (!inApp) {
+        if (!inApp && isMobile) {
             const preUrl = `/open-wa?phone=${encodeURIComponent(phoneNumberClienteInit)}&text=${encodeURIComponent(messageClientePreview)}&auto=1`
             popup = window.open(preUrl, '_blank', 'noopener,noreferrer')
             if (popup) {
@@ -380,7 +392,7 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
             onComplete()
 
             try {
-                if (inApp) {
+                if (inApp || !isMobile) {
                     window.location.href = urlCliente
                 } else if (popup && !popup.closed) {
                     popup.location.href = urlCliente
