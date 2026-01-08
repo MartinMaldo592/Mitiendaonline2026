@@ -25,6 +25,15 @@ export const metadata: Metadata = {
   alternates: {
     canonical: siteUrl,
   },
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", type: "image/x-icon" },
+    ],
+    shortcut: [
+      { url: "/favicon.ico", type: "image/x-icon" },
+    ],
+  },
   applicationName: "Blama.shop",
   description:
     "Blama.shop es una tienda online en Perú con productos seleccionados, compras simples y atención rápida por WhatsApp. Encuentra novedades, ofertas y envíos a domicilio.",
