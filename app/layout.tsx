@@ -1,5 +1,6 @@
 
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { LayoutShell } from "@/components/layout-shell";
@@ -14,7 +15,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://blama.shop";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.blama.shop";
+const GA_MEASUREMENT_ID = "G-1RT9M8ZQK1";
 
 export const metadata: Metadata = {
   title: {
@@ -70,6 +72,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
+      <head>
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+          strategy="afterInteractive"
+        />
+        <Script id="gtag-init" strategy="afterInteractive">
+          {`window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+
+gtag('config', '${GA_MEASUREMENT_ID}');`}
+        </Script>
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col bg-background`}
       >
