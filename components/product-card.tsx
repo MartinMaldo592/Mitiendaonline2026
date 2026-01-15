@@ -8,8 +8,9 @@ import { Plus, Image as ImageIcon } from "lucide-react"
 import { formatCurrency, slugify } from "@/lib/utils"
 import { Database } from "@/types/database.types"
 import { useCartStore } from "@/features/cart"
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { ProductImageCarousel } from "@/components/product-image-carousel"
+import { useCartAnimationStore } from "@/features/cart/cart-animation"
 
 type Product = Database['public']['Tables']['productos']['Row']
 
@@ -20,6 +21,8 @@ interface ProductCardProps {
 
 export function ProductCard({ product, imagePriority = false }: ProductCardProps) {
     const addItem = useCartStore((state) => state.addItem)
+    const startAnimation = useCartAnimationStore((state) => state.startAnimation)
+    const imageRef = useRef<HTMLDivElement>(null)
     const [isAdded, setIsAdded] = useState(false)
 
     const currentPrice = Number((product as any)?.precio ?? 0)
@@ -38,8 +41,15 @@ export function ProductCard({ product, imagePriority = false }: ProductCardProps
     )
     const fallbackImages = images.length > 0 ? images : product.imagen_url ? [product.imagen_url] : []
 
-    const handleAddToCart = () => {
+    const handleAddToCart = (e: React.MouseEvent) => {
+        e.preventDefault() // Link wrapper might trigger navigation if we are not careful, but Button handles click.
+
         addItem(product)
+
+        if (imageRef.current && fallbackImages.length > 0) {
+            const rect = imageRef.current.getBoundingClientRect()
+            startAnimation(fallbackImages[0], rect)
+        }
 
         // Feedback visual simple
         setIsAdded(true)
@@ -51,7 +61,7 @@ export function ProductCard({ product, imagePriority = false }: ProductCardProps
     return (
         <Card className="group overflow-hidden border-none shadow-sm hover:shadow-md transition-all duration-300 bg-card flex flex-col rounded-xl">
             <Link href={productHref} className="block">
-                <div className="aspect-square bg-popover relative overflow-hidden">
+                <div className="aspect-square bg-popover relative overflow-hidden" ref={imageRef}>
                     {fallbackImages.length > 0 ? (
                         <ProductImageCarousel
                             images={fallbackImages}

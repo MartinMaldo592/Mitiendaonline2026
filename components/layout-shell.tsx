@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { usePathname } from "next/navigation"
 
 import { Header } from "@/components/header"
+import { FlyingProductImage } from "@/components/flying-product-image"
 import { AnnouncementBar } from "@/components/announcement-bar"
 import { Footer } from "@/components/footer"
 import { supabase } from "@/lib/supabaseClient"
@@ -29,25 +30,25 @@ export function LayoutShell({ children }: LayoutShellProps) {
   useEffect(() => {
     let cancelled = false
 
-    ;(async () => {
-      const { data, error } = await supabase
-        .from("announcement_bar")
-        .select("enabled, interval_ms, messages")
-        .eq("id", 1)
-        .maybeSingle()
+      ; (async () => {
+        const { data, error } = await supabase
+          .from("announcement_bar")
+          .select("enabled, interval_ms, messages")
+          .eq("id", 1)
+          .maybeSingle()
 
-      if (cancelled) return
-      if (error || !data) {
-        setAnnouncementEnabled(true)
-        return
-      }
+        if (cancelled) return
+        if (error || !data) {
+          setAnnouncementEnabled(true)
+          return
+        }
 
-      setAnnouncementEnabled(Boolean((data as any).enabled))
-      setAnnouncementIntervalMs(Number((data as any).interval_ms) || 3500)
+        setAnnouncementEnabled(Boolean((data as any).enabled))
+        setAnnouncementIntervalMs(Number((data as any).interval_ms) || 3500)
 
-      const msgs = Array.isArray((data as any).messages) ? ((data as any).messages as string[]) : []
-      setAnnouncementMessages(msgs.length > 0 ? msgs : undefined)
-    })()
+        const msgs = Array.isArray((data as any).messages) ? ((data as any).messages as string[]) : []
+        setAnnouncementMessages(msgs.length > 0 ? msgs : undefined)
+      })()
 
     return () => {
       cancelled = true
@@ -65,6 +66,7 @@ export function LayoutShell({ children }: LayoutShellProps) {
   return (
     <>
       <Header />
+      <FlyingProductImage />
       {shouldShowAnnouncement && (
         <AnnouncementBar
           className="sticky top-16 z-40"

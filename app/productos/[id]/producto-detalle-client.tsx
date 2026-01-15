@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { formatCurrency } from "@/lib/utils"
 import { ProductImageCarousel } from "@/components/product-image-carousel"
 import { useCartStore } from "@/features/cart"
+import { useCartAnimationStore } from "@/features/cart/cart-animation"
 import { getProductDetail, getRecommendedProducts } from "@/features/products/services/products.client"
 import {
     ArrowLeft,
@@ -42,6 +43,7 @@ export default function ProductoDetalleClient() {
     const rawId = params.id as string
 
     const numericId = useMemo(() => parseProductId(rawId), [rawId])
+    const startAnimation = useCartAnimationStore((s) => s.startAnimation)
 
     const [loading, setLoading] = useState(true)
     const [producto, setProducto] = useState<any>(null)
@@ -51,6 +53,7 @@ export default function ProductoDetalleClient() {
     const [recoLoading, setRecoLoading] = useState(false)
     const [recomendados, setRecomendados] = useState<any[]>([])
     const recoRef = useRef<HTMLDivElement | null>(null)
+    const imageContainerRef = useRef<HTMLDivElement | null>(null)
 
     const [shareOpen, setShareOpen] = useState(false)
     const [copied, setCopied] = useState(false)
@@ -158,7 +161,7 @@ export default function ProductoDetalleClient() {
                 const u = String(producto.imagen_url || '').trim()
                 const s = u.toLowerCase()
                 return s.endsWith('.mp4') || s.endsWith('.webm') || s.endsWith('.mov') || s.endsWith('.m4v') ? [u] : []
-              })()
+            })()
             : []
 
         const merged = [...base, ...fromImages, ...fromMain]
@@ -318,7 +321,7 @@ export default function ProductoDetalleClient() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                     <Card className="overflow-hidden shadow-sm border">
-                        <div className="aspect-square bg-popover relative group">
+                        <div className="aspect-square bg-popover relative group" ref={imageContainerRef}>
                             {images.length > 0 ? (
                                 <ProductImageCarousel images={images} alt={producto.nombre} />
                             ) : (
@@ -471,7 +474,15 @@ export default function ProductoDetalleClient() {
                             {inStock ? (
                                 quantity === 0 ? (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        <Button className="w-full gap-2 h-11" onClick={() => addItem(producto, selectedVariante)}>
+                                        <Button className="w-full gap-2 h-11" onClick={() => {
+                                            addItem(producto, selectedVariante)
+                                            if (imageContainerRef.current && images.length > 0) {
+                                                const rect = imageContainerRef.current.getBoundingClientRect()
+                                                startAnimation(images[0], rect)
+                                            }
+                                            setAddedToastKey(Date.now())
+                                            setAddedToastOpen(true)
+                                        }}>
                                             <ShoppingCart className="h-4 w-4" /> Agregar al carrito
                                         </Button>
                                         <Button
@@ -667,6 +678,10 @@ export default function ProductoDetalleClient() {
                         disabled={!inStock}
                         onClick={() => {
                             addItem(producto, selectedVariante)
+                            if (imageContainerRef.current && images.length > 0) {
+                                const rect = imageContainerRef.current.getBoundingClientRect()
+                                startAnimation(images[0], rect)
+                            }
                             setAddedToastKey(Date.now())
                             setAddedToastOpen(true)
                         }}
