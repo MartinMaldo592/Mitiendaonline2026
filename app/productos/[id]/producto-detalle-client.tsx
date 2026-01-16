@@ -59,6 +59,7 @@ export default function ProductoDetalleClient() {
     const [copied, setCopied] = useState(false)
     const [addedToastOpen, setAddedToastOpen] = useState(false)
     const [addedToastKey, setAddedToastKey] = useState(0)
+    const [activeTab, setActiveTab] = useState<'description' | 'specs' | 'reviews' | 'questions'>('description')
 
     const { addItem, items, updateQuantity } = useCartStore()
 
@@ -538,68 +539,138 @@ export default function ProductoDetalleClient() {
                         </CardContent>
                     </Card>
 
-                    {(producto?.descripcion || producto?.materiales || producto?.tamano || producto?.color || producto?.cuidados || producto?.uso) && (
-                        <Card className="shadow-sm border">
-                            <CardContent className="p-6 space-y-4">
-                                <h2 className="text-lg font-bold text-foreground">Descripción</h2>
+                    {/* TABS SECTION */}
+                    <div className="mt-8 border-t pt-8">
+                        <div className="flex items-center gap-6 border-b border-border mb-6 overflow-x-auto no-scrollbar">
+                            {producto?.descripcion && (
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('description')}
+                                    className={`pb-3 border-b-2 text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === 'description' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                                >
+                                    Descripción
+                                </button>
+                            )}
+                            {(producto?.materiales || producto?.tamano || producto?.color || producto?.cuidados || producto?.uso || especificaciones.length > 0) && (
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('specs')}
+                                    className={`pb-3 border-b-2 text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === 'specs' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                                >
+                                    Ficha técnica
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('reviews')}
+                                className={`pb-3 border-b-2 text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === 'reviews' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                            >
+                                Valoraciones
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('questions')}
+                                className={`pb-3 border-b-2 text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === 'questions' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                            >
+                                Preguntas y respuestas
+                            </button>
+                        </div>
 
-                                {producto?.descripcion && (
-                                    <div className="text-sm text-muted-foreground whitespace-pre-line">{producto.descripcion}</div>
-                                )}
+                        <div className="min-h-[300px]">
+                            {activeTab === 'description' && producto?.descripcion && (
+                                <Card className="animate-in fade-in duration-300 shadow-sm border bg-card/50">
+                                    <CardContent className="p-6 md:p-8 space-y-6">
+                                        <h3 className="text-xl font-bold flex items-center gap-2">
+                                            Descripción
+                                        </h3>
+                                        <div className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
+                                            {producto.descripcion}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    {producto?.materiales && (
-                                        <div>
-                                            <div className="text-xs font-semibold text-foreground">Materiales</div>
-                                            <div className="text-sm text-muted-foreground whitespace-pre-line">{producto.materiales}</div>
-                                        </div>
-                                    )}
-                                    {producto?.tamano && (
-                                        <div>
-                                            <div className="text-xs font-semibold text-foreground">Tamaño / Medidas</div>
-                                            <div className="text-sm text-muted-foreground whitespace-pre-line">{producto.tamano}</div>
-                                        </div>
-                                    )}
-                                    {producto?.color && (
-                                        <div>
-                                            <div className="text-xs font-semibold text-foreground">Color</div>
-                                            <div className="text-sm text-muted-foreground whitespace-pre-line">{producto.color}</div>
-                                        </div>
-                                    )}
-                                    {producto?.cuidados && (
-                                        <div>
-                                            <div className="text-xs font-semibold text-foreground">Cuidados</div>
-                                            <div className="text-sm text-muted-foreground whitespace-pre-line">{producto.cuidados}</div>
-                                        </div>
-                                    )}
-                                    {producto?.uso && (
-                                        <div className="sm:col-span-2">
-                                            <div className="text-xs font-semibold text-foreground">Uso recomendado</div>
-                                            <div className="text-sm text-muted-foreground whitespace-pre-line">{producto.uso}</div>
-                                        </div>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
+                            {activeTab === 'specs' && (
+                                <Card className="animate-in fade-in duration-300 shadow-sm border bg-card/50">
+                                    <CardContent className="p-6 md:p-8 space-y-8">
+                                        {(producto?.materiales || producto?.tamano || producto?.color || producto?.cuidados || producto?.uso) && (
+                                            <div>
+                                                <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                                                    Detalles del producto
+                                                </h3>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-8">
+                                                    {producto?.materiales && (
+                                                        <div className="space-y-2">
+                                                            <div className="text-sm font-bold text-foreground">Materiales</div>
+                                                            <div className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{producto.materiales}</div>
+                                                        </div>
+                                                    )}
+                                                    {producto?.tamano && (
+                                                        <div className="space-y-2">
+                                                            <div className="text-sm font-bold text-foreground">Tamaño / Medidas</div>
+                                                            <div className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{producto.tamano}</div>
+                                                        </div>
+                                                    )}
+                                                    {producto?.color && (
+                                                        <div className="space-y-2">
+                                                            <div className="text-sm font-bold text-foreground">Color</div>
+                                                            <div className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{producto.color}</div>
+                                                        </div>
+                                                    )}
+                                                    {producto?.cuidados && (
+                                                        <div className="space-y-2">
+                                                            <div className="text-sm font-bold text-foreground">Cuidados</div>
+                                                            <div className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{producto.cuidados}</div>
+                                                        </div>
+                                                    )}
+                                                    {producto?.uso && (
+                                                        <div className="sm:col-span-2 space-y-2">
+                                                            <div className="text-sm font-bold text-foreground">Uso recomendado</div>
+                                                            <div className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{producto.uso}</div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
 
-                    {especificaciones.length > 0 && (
-                        <Card className="shadow-sm border">
-                            <CardContent className="p-6 space-y-4">
-                                <h2 className="text-lg font-bold text-foreground">Ficha técnica</h2>
-                                <div className="divide-y">
-                                    {especificaciones.map((s: any) => (
-                                        <div key={s.id} className="py-2 flex items-start justify-between gap-4">
-                                            <div className="text-sm font-semibold text-foreground">{String(s.clave || "")}</div>
-                                            <div className="text-sm text-muted-foreground text-right whitespace-pre-line">{String(s.valor || "")}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
+                                        {especificaciones.length > 0 && (
+                                            <div>
+                                                <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                                                    Especificaciones
+                                                </h3>
+                                                <div className="rounded-xl border overflow-hidden">
+                                                    <div className="divide-y">
+                                                        {especificaciones.map((s: any, idx: number) => (
+                                                            <div key={s.id} className={`p-4 flex items-start justify-between gap-4 ${idx % 2 === 0 ? 'bg-muted/30' : 'bg-transparent'}`}>
+                                                                <div className="text-sm font-semibold text-foreground w-1/3">{String(s.clave || "")}</div>
+                                                                <div className="text-sm text-muted-foreground text-right w-2/3 whitespace-pre-line">{String(s.valor || "")}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            )}
 
-                    <ProductSocialProof productId={Number(producto.id)} />
+                            {activeTab === 'reviews' && (
+                                <Card className="animate-in fade-in duration-300 shadow-sm border bg-card/50">
+                                    <CardContent className="p-6 md:p-8">
+                                        <ProductSocialProof productId={Number(producto.id)} section="reviews" />
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            {activeTab === 'questions' && (
+                                <Card className="animate-in fade-in duration-300 shadow-sm border bg-card/50">
+                                    <CardContent className="p-6 md:p-8">
+                                        <ProductSocialProof productId={Number(producto.id)} section="questions" />
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </div>
 

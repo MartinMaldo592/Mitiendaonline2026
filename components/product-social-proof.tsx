@@ -44,10 +44,12 @@ function Stars({ value }: { value: number }) {
   )
 }
 
-export function ProductSocialProof({ productId }: { productId: number }) {
+export function ProductSocialProof({ productId, section = 'all' }: { productId: number; section?: 'reviews' | 'questions' | 'all' }) {
   const [loading, setLoading] = useState(true)
   const [reviews, setReviews] = useState<ReviewRow[]>([])
   const [questions, setQuestions] = useState<QuestionRow[]>([])
+
+  // ... (keep state exactly as is)
 
   const [showReviewForm, setShowReviewForm] = useState(false)
   const [showQuestionForm, setShowQuestionForm] = useState(false)
@@ -84,6 +86,9 @@ export function ProductSocialProof({ productId }: { productId: number }) {
     async function load() {
       setLoading(true)
 
+      // Only fetch what we need if we wanted to optimize, but typically fetching both is fine as they are related.
+      // However, if section is specific, arguably we could only fetch that table.
+      // For simplicity and avoiding large logic changes, we fetch both.
       const [reviewsRes, questionsRes] = await Promise.all([
         supabase
           .from("product_reviews")
@@ -115,6 +120,8 @@ export function ProductSocialProof({ productId }: { productId: number }) {
       cancelled = true
     }
   }, [productId])
+
+  // ... (keep submit functions exactly as is)
 
   async function submitReview() {
     if (!reviewBody.trim() || reviewBody.trim().length < 10) {
@@ -202,10 +209,13 @@ export function ProductSocialProof({ productId }: { productId: number }) {
     }
   }
 
+  const showReviews = section === 'all' || section === 'reviews'
+  const showQuestions = section === 'all' || section === 'questions'
+
   return (
     <div className="space-y-6">
-      <Card className="shadow-sm border">
-        <CardContent className="p-6 space-y-4">
+      {showReviews && (
+        <div className="space-y-4">
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-lg font-bold">Reseñas</div>
@@ -377,95 +387,98 @@ export function ProductSocialProof({ productId }: { productId: number }) {
               </div>
             ) : null}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      )
+      }
 
-      <Card className="shadow-sm border">
-        <CardContent className="p-6 space-y-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-lg font-bold">Preguntas y respuestas</div>
-              <div className="text-sm text-muted-foreground">Resuelve dudas antes de comprar</div>
-            </div>
-            <Badge variant="secondary">Sin cuenta</Badge>
-          </div>
-
-          {loading ? (
-            <div className="text-sm text-muted-foreground">Cargando preguntas...</div>
-          ) : questions.length === 0 ? (
-            <div className="text-sm text-muted-foreground">Aún no hay preguntas publicadas.</div>
-          ) : (
-            <div className="space-y-3">
-              {questions.map((q) => (
-                <div key={q.id} className="rounded-xl border bg-card p-4">
-                  <div className="text-sm font-semibold">{q.question}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {q.asker_name ? `Por ${q.asker_name} • ` : ""}{new Date(q.created_at).toLocaleDateString()}
-                  </div>
-
-                  {Array.isArray(q.product_answers) && q.product_answers.length > 0 ? (
-                    <div className="mt-3 rounded-lg bg-popover p-3">
-                      <div className="text-xs font-semibold">Respuesta</div>
-                      <div className="text-sm text-muted-foreground whitespace-pre-line">{q.product_answers[0].answer}</div>
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="pt-2 border-t space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-semibold">Hacer una pregunta</div>
-              {!showQuestionForm ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setQSent(null)
-                    setShowQuestionForm(true)
-                  }}
-                >
-                  Hacer una pregunta
-                </Button>
-              ) : (
-                <Button type="button" variant="outline" onClick={() => setShowQuestionForm(false)}>
-                  Cancelar
-                </Button>
-              )}
-            </div>
-
-            {qSent ? <div className="text-sm text-muted-foreground">{qSent}</div> : null}
-
-            {showQuestionForm ? (
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label>Tu nombre (opcional)</Label>
-                    <Input value={qName} onChange={(e) => setQName(e.target.value)} placeholder="Ej: Ana" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Teléfono (opcional)</Label>
-                    <Input value={qPhone} onChange={(e) => setQPhone(e.target.value)} placeholder="999999999" />
-                  </div>
-                  <div className="space-y-1 md:col-span-2">
-                    <Label>Pregunta</Label>
-                    <Textarea
-                      value={qText}
-                      onChange={(e) => setQText(e.target.value)}
-                      placeholder="Ej: ¿Qué talla recomiendas?"
-                    />
-                  </div>
-                </div>
-
-                <Button type="button" onClick={submitQuestion} disabled={sendingQ} className="w-full md:w-auto">
-                  {sendingQ ? "Enviando..." : "Enviar pregunta"}
-                </Button>
+      {
+        showQuestions && (
+          <div className="space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-lg font-bold">Preguntas y respuestas</div>
+                <div className="text-sm text-muted-foreground">Resuelve dudas antes de comprar</div>
               </div>
-            ) : null}
+              <Badge variant="secondary">Sin cuenta</Badge>
+            </div>
+
+            {loading ? (
+              <div className="text-sm text-muted-foreground">Cargando preguntas...</div>
+            ) : questions.length === 0 ? (
+              <div className="text-sm text-muted-foreground">Aún no hay preguntas publicadas.</div>
+            ) : (
+              <div className="space-y-3">
+                {questions.map((q) => (
+                  <div key={q.id} className="rounded-xl border bg-card p-4">
+                    <div className="text-sm font-semibold">{q.question}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {q.asker_name ? `Por ${q.asker_name} • ` : ""}{new Date(q.created_at).toLocaleDateString()}
+                    </div>
+
+                    {Array.isArray(q.product_answers) && q.product_answers.length > 0 ? (
+                      <div className="mt-3 rounded-lg bg-popover p-3">
+                        <div className="text-xs font-semibold">Respuesta</div>
+                        <div className="text-sm text-muted-foreground whitespace-pre-line">{q.product_answers[0].answer}</div>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="pt-2 border-t space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-semibold">Hacer una pregunta</div>
+                {!showQuestionForm ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setQSent(null)
+                      setShowQuestionForm(true)
+                    }}
+                  >
+                    Hacer una pregunta
+                  </Button>
+                ) : (
+                  <Button type="button" variant="outline" onClick={() => setShowQuestionForm(false)}>
+                    Cancelar
+                  </Button>
+                )}
+              </div>
+
+              {qSent ? <div className="text-sm text-muted-foreground">{qSent}</div> : null}
+
+              {showQuestionForm ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label>Tu nombre (opcional)</Label>
+                      <Input value={qName} onChange={(e) => setQName(e.target.value)} placeholder="Ej: Ana" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Teléfono (opcional)</Label>
+                      <Input value={qPhone} onChange={(e) => setQPhone(e.target.value)} placeholder="999999999" />
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <Label>Pregunta</Label>
+                      <Textarea
+                        value={qText}
+                        onChange={(e) => setQText(e.target.value)}
+                        placeholder="Ej: ¿Qué talla recomiendas?"
+                      />
+                    </div>
+                  </div>
+
+                  <Button type="button" onClick={submitQuestion} disabled={sendingQ} className="w-full md:w-auto">
+                    {sendingQ ? "Enviando..." : "Enviar pregunta"}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        )
+      }
+    </div >
   )
 }
