@@ -97,6 +97,15 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
         }
     }
 
+    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value.replace(/\D/g, "").slice(0, 9)
+        const parts = []
+        if (raw.length > 0) parts.push(raw.slice(0, 3))
+        if (raw.length > 3) parts.push(raw.slice(3, 6))
+        if (raw.length > 6) parts.push(raw.slice(6, 9))
+        setPhone(parts.join(" "))
+    }
+
     const subtotalAmount = Number(total) || 0
     const discountAmount = Math.max(0, Math.min(subtotalAmount, Number(couponDiscount) || 0))
     const totalToPay = Math.max(0, Math.round((subtotalAmount - discountAmount) * 100) / 100)
@@ -189,7 +198,7 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
             popup = window.open(preUrl, '_blank', 'noopener,noreferrer')
             if (popup) {
                 try {
-                    ;(popup as any).opener = null
+                    ; (popup as any).opener = null
                 } catch (err) {
                 }
             }
@@ -315,147 +324,156 @@ function FormContent({ items, total, onBack, onComplete }: CheckoutFormProps) {
 
     return (
         <>
-        <form onSubmit={handleSubmit} className="flex flex-col h-full">
+            <form onSubmit={handleSubmit} className="flex flex-col h-full">
                 <div className="p-4 border-b flex items-center gap-2 bg-popover">
                     <Button type="button" variant="ghost" size="icon" onClick={onBack} disabled={isSubmitting} className="h-8 w-8 hover:bg-popover/80">
-                    <ArrowLeft className="h-4 w-4" />
-                </Button>
+                        <ArrowLeft className="h-4 w-4" />
+                    </Button>
                     <h3 className="font-semibold text-foreground">Datos de Envío</h3>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                <div className="space-y-2">
-                    <Label htmlFor="name">Nombre Completo</Label>
-                    <Input id="name" required placeholder="Juan Pérez" value={name} onChange={(e) => setName(e.target.value)} disabled={isSubmitting} />
                 </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="phone">Celular</Label>
-                    <Input id="phone" required type="tel" placeholder="999 999 999" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isSubmitting} />
-                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="name">Nombre Completo</Label>
+                        <Input id="name" required placeholder="Juan Pérez" value={name} onChange={(e) => setName(e.target.value)} disabled={isSubmitting} />
+                    </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="dni">DNI</Label>
-                    <Input
-                        id="dni"
-                        required
-                        inputMode="numeric"
-                        pattern="[0-9]{8}"
-                        minLength={8}
-                        maxLength={8}
-                        placeholder="12345678"
-                        value={dni}
-                        onChange={(e) => {
-                            const next = e.target.value.replace(/\D/g, '').slice(0, 8)
-                            setDni(next)
-                            if (dniError) setDniError("")
-                        }}
-                        onInvalid={(e) => {
-                            e.currentTarget.setCustomValidity('Ingresa un DNI válido de 8 dígitos')
-                        }}
-                        onInput={(e) => {
-                            e.currentTarget.setCustomValidity('')
-                        }}
-                        disabled={isSubmitting}
-                    />
-                    {dniError && <p className="text-xs text-destructive">{dniError}</p>}
-                </div>
-
-                <div className="space-y-2 relative">
-                    <Label htmlFor="address">Dirección (Google Maps)</Label>
-                    <div className="relative">
-                        <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <div className="space-y-2">
+                        <Label htmlFor="phone">Celular</Label>
                         <Input
-                            id="address"
-                            value={value}
-                            onChange={(e) => setValue(e.target.value)}
-                            disabled={!ready || isSubmitting}
-                            placeholder="Escribe tu dirección..."
-                            className="pl-9"
-                            autoComplete="off"
+                            id="phone"
+                            required
+                            type="tel"
+                            placeholder="999 999 999"
+                            value={phone}
+                            onChange={handlePhoneChange}
+                            disabled={isSubmitting}
+                            maxLength={11}
                         />
                     </div>
-                    {status === "OK" && (
-                        <ul className="absolute z-10 w-full bg-card border border-border rounded-md shadow-lg mt-1 max-h-60 overflow-auto">
-                            {data.map(({ place_id, description }) => (
-                                <li key={place_id} onClick={() => handleSelect(description)} className="px-4 py-2 hover:bg-popover cursor-pointer text-sm text-muted-foreground">
-                                    {description}
-                                </li>
-                            ))}
-                        </ul>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="dni">DNI</Label>
+                        <Input
+                            id="dni"
+                            required
+                            inputMode="numeric"
+                            pattern="[0-9]{8}"
+                            minLength={8}
+                            maxLength={8}
+                            placeholder="12345678"
+                            value={dni}
+                            onChange={(e) => {
+                                const next = e.target.value.replace(/\D/g, '').slice(0, 8)
+                                setDni(next)
+                                if (dniError) setDniError("")
+                            }}
+                            onInvalid={(e) => {
+                                e.currentTarget.setCustomValidity('Ingresa un DNI válido de 8 dígitos')
+                            }}
+                            onInput={(e) => {
+                                e.currentTarget.setCustomValidity('')
+                            }}
+                            disabled={isSubmitting}
+                        />
+                        {dniError && <p className="text-xs text-destructive">{dniError}</p>}
+                    </div>
+
+                    <div className="space-y-2 relative">
+                        <Label htmlFor="address">Dirección (Google Maps)</Label>
+                        <div className="relative">
+                            <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                id="address"
+                                value={value}
+                                onChange={(e) => setValue(e.target.value)}
+                                disabled={!ready || isSubmitting}
+                                placeholder="Escribe tu dirección..."
+                                className="pl-9"
+                                autoComplete="off"
+                            />
+                        </div>
+                        {status === "OK" && (
+                            <ul className="absolute z-10 w-full bg-card border border-border rounded-md shadow-lg mt-1 max-h-60 overflow-auto">
+                                {data.map(({ place_id, description }) => (
+                                    <li key={place_id} onClick={() => handleSelect(description)} className="px-4 py-2 hover:bg-popover cursor-pointer text-sm text-muted-foreground">
+                                        {description}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="reference">Referencia (Opcional)</Label>
+                        <Input id="reference" placeholder="Frente al parque, casa azul..." value={reference} onChange={(e) => setReference(e.target.value)} disabled={isSubmitting} />
+                    </div>
+
+                    {!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY && (
+                        <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded">⚠️ Nota: Autocompletado deshabilitado. Falta API Key.</div>
                     )}
                 </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="reference">Referencia (Opcional)</Label>
-                    <Input id="reference" placeholder="Frente al parque, casa azul..." value={reference} onChange={(e) => setReference(e.target.value)} disabled={isSubmitting} />
-                </div>
-
-                {!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY && (
-                    <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded">⚠️ Nota: Autocompletado deshabilitado. Falta API Key.</div>
-                )}
-            </div>
-
-            <div className="p-4 border-t mt-auto bg-popover">
-                <div className="space-y-3 mb-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="coupon">Cupón de descuento (Opcional)</Label>
-                        <div className="flex gap-2">
-                            <Input
-                                id="coupon"
-                                placeholder="Ej: PROMO10"
-                                value={couponCode}
-                                onChange={(e) => {
-                                    setCouponCode(e.target.value)
-                                    setCouponApplied(false)
-                                    setCouponError("")
-                                }}
-                                disabled={isSubmitting}
-                            />
-                            <Button type="button" variant="outline" onClick={handleApplyCoupon} disabled={isSubmitting || couponApplying}>
-                                {couponApplying ? <Loader2 className="h-4 w-4 animate-spin" /> : "Aplicar"}
-                            </Button>
+                <div className="p-4 border-t mt-auto bg-popover">
+                    <div className="space-y-3 mb-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="coupon">Cupón de descuento (Opcional)</Label>
+                            <div className="flex gap-2">
+                                <Input
+                                    id="coupon"
+                                    placeholder="Ej: PROMO10"
+                                    value={couponCode}
+                                    onChange={(e) => {
+                                        setCouponCode(e.target.value)
+                                        setCouponApplied(false)
+                                        setCouponError("")
+                                    }}
+                                    disabled={isSubmitting}
+                                />
+                                <Button type="button" variant="outline" onClick={handleApplyCoupon} disabled={isSubmitting || couponApplying}>
+                                    {couponApplying ? <Loader2 className="h-4 w-4 animate-spin" /> : "Aplicar"}
+                                </Button>
+                            </div>
+                            {couponError && (
+                                <p className="text-xs text-destructive">{couponError}</p>
+                            )}
+                            {couponApplied && !couponError && (
+                                <p className="text-xs text-green-600">Cupón aplicado</p>
+                            )}
                         </div>
-                        {couponError && (
-                            <p className="text-xs text-destructive">{couponError}</p>
-                        )}
-                        {couponApplied && !couponError && (
-                            <p className="text-xs text-green-600">Cupón aplicado</p>
-                        )}
-                    </div>
 
-                    <div className="text-sm font-medium space-y-1">
-                        <div className="flex justify-between items-center">
-                            <span>Subtotal:</span>
-                            <span>{formatCurrency(subtotalAmount)}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span>Descuento:</span>
-                            <span>-{formatCurrency(discountAmount)}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span>Total a Pagar:</span>
-                            <span className="text-lg font-bold">{formatCurrency(totalToPay)}</span>
+                        <div className="text-sm font-medium space-y-1">
+                            <div className="flex justify-between items-center">
+                                <span>Subtotal:</span>
+                                <span>{formatCurrency(subtotalAmount)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span>Descuento:</span>
+                                <span>-{formatCurrency(discountAmount)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span>Total a Pagar:</span>
+                                <span className="text-lg font-bold">{formatCurrency(totalToPay)}</span>
+                            </div>
                         </div>
                     </div>
+                    <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 h-12 text-base font-bold" disabled={isSubmitting}>
+                        {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando...</> : "Confirmar Pedido en WhatsApp"}
+                    </Button>
                 </div>
-                <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 h-12 text-base font-bold" disabled={isSubmitting}>
-                    {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando...</> : "Confirmar Pedido en WhatsApp"}
-                </Button>
-            </div>
-        </form>
-        {waPromptOpen && waUrl && (
-            <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4">
-                <div className="w-full max-w-xl bg-card border border-border rounded-lg shadow-lg p-4">
-                    <h3 className="text-lg font-semibold text-foreground">Abrir WhatsApp</h3>
-                    <p className="text-sm text-muted-foreground mt-2">Pulsa el botón para abrir tu pedido en WhatsApp.</p>
-                    <div className="mt-4 flex gap-3">
-                        <a href={waUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md">Abrir WhatsApp</a>
-                        <button onClick={() => { setWaPromptOpen(false); setWaUrl(null) }} className="px-4 py-2 border border-border rounded-md">Cerrar</button>
+            </form>
+            {waPromptOpen && waUrl && (
+                <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4">
+                    <div className="w-full max-w-xl bg-card border border-border rounded-lg shadow-lg p-4">
+                        <h3 className="text-lg font-semibold text-foreground">Abrir WhatsApp</h3>
+                        <p className="text-sm text-muted-foreground mt-2">Pulsa el botón para abrir tu pedido en WhatsApp.</p>
+                        <div className="mt-4 flex gap-3">
+                            <a href={waUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md">Abrir WhatsApp</a>
+                            <button onClick={() => { setWaPromptOpen(false); setWaUrl(null) }} className="px-4 py-2 border border-border rounded-md">Cerrar</button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        )}
+            )}
         </>
     )
 }
